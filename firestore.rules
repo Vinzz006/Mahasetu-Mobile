@@ -1,0 +1,291 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================================
+    // HELPER FUNCTIONS (Requirement 22)
+    // ==========================================================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserData() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userData() {
+      return hasUserData() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : {};
+    }
+
+    function isApprovedCitizen() {
+      return signedIn()
+        && (userData().role == "CITIZEN" || userData().role == "citizen")
+        && userData().status == "APPROVED";
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && (
+          ((userData().role == "ADMIN" || userData().role == "admin") && userData().status == "APPROVED")
+          || (request.auth.token.email in [
+            "tammu.admin@mahasetu.gov.in",
+            "shanmugam.admin@mahasetu.gov.in",
+            "tammu@mahasetu.gov.in",
+            "shanmugam@mahasetu.gov.in"
+          ])
+        );
+    }
+
+    function isAuditor() {
+      return signedIn()
+        && (userData().role == "AUDITOR" || userData().role == "auditor")
+        && userData().status == "APPROVED";
+    }
+
+    function isDepartmentOfficer() {
+      return signedIn()
+        && userData().status == "APPROVED"
+        && (
+          userData().role in ["DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C", "department_officer"]
+        );
+    }
+
+    function isDepartment(deptId) {
+      return isDepartmentOfficer() && (
+        userData().departmentId == deptId
+        || userData().role == deptId
+        || (deptId in ["DEPARTMENT_A", "DEPT_A"] && (userData().departmentId in ["DEPARTMENT_A", "DEPT_A"] || userData().role in ["DEPARTMENT_A", "DEPT_A"]))
+        || (deptId in ["DEPARTMENT_B", "DEPT_B"] && (userData().departmentId in ["DEPARTMENT_B", "DEPT_B"] || userData().role in ["DEPARTMENT_B", "DEPT_B"]))
+        || (deptId in ["DEPARTMENT_C", "DEPT_C"] && (userData().departmentId in ["DEPARTMENT_C", "DEPT_C"] || userData().role in ["DEPARTMENT_C", "DEPT_C"]))
+      );
+    }
+
+    // ==========================================================
+    // 1. USERS COLLECTION (users/{userId})
+    // - Authenticated users can read profiles
+    // - Self-registration allowed only with PENDING status and inactive state
+    // - Admin can approve/reject users, assign roles, and modify profiles
+    // - Non-admin users cannot self-elevate role, status, or departmentId
+    // ==========================================================
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (
+        isAdmin() || (
+          request.auth.uid == userId
+          && (request.resource.data.role == null || request.resource.data.role in ["pending", "CITIZEN", "citizen"])
+          && request.resource.data.status in ["PENDING", "PENDING_APPROVAL"]
+          && request.resource.data.isActive == false
+        )
+      );
+      allow update: if isAdmin() || (
+        signedIn()
+        && request.auth.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          "role", "status", "isActive", "departmentId", "isVerified", "verifiedAt", "verifiedBy"
+        ])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ==========================================================
+    // 2. APPLICATIONS COLLECTION (applications/{appId})
+    // - Read: Citizen reads ONLY their own applications
+    //         Department officers, Admin, Auditor can read
+    // - Create: Only Approved Citizens can create, must match request.auth.uid
+    //           Cannot create application for another citizen
+    // - Update: Admin full update; Officers/Auditor can update verification status
+    //           Citizens cannot modify application post-submission
+    // ==========================================================
+    match /applications/{appId} {
+      allow read: if signedIn() && (
+        resource.data.citizenUid == request.auth.uid
+        || resource.data.citizenId == request.auth.uid
+        || isDepartmentOfficer()
+        || isAdmin()
+        || isAuditor()
+      );
+      allow create: if isApprovedCitizen()
+                    && request.resource.data.citizenId == request.auth.uid
+                    && (request.resource.data.citizenUid == null || request.resource.data.citizenUid == request.auth.uid);
+      allow update: if isAdmin() || (
+        signedIn()
+        && (isDepartmentOfficer() || isAuditor())
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          "verificationSummary", "status", "updatedAt", "rejectionReason", "rejectedBy", "rejectedAt", "completedAt"
+        ])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ==========================================================
+    // 3. APPLICATION VERIFICATIONS (applicationVerifications/{vId})
+    // - Read: All signed-in actors involved in workflow
+    // - Create: Admin and Department Officers (or backend service)
+    //           Citizens are strictly DENIED creation of verification records
+    // - Update: Department A/B/C officers, Admin, Auditor update only their slot
+    //           Citizens CANNOT verify or modify verification records
+    // - Delete: Strictly forbidden (immutable statutory audit trail)
+    // ==========================================================
+    match /applicationVerifications/{verificationId} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || isDepartmentOfficer() || isAuditor();
+      allow update: if (
+        (isDepartment("DEPARTMENT_A") && (resource.data.verifierKey in ["DEPARTMENT_A", "DEPT_A"] || resource.data.verifierRole in ["DEPARTMENT_A", "DEPT_A"]))
+        || (isDepartment("DEPARTMENT_B") && (resource.data.verifierKey in ["DEPARTMENT_B", "DEPT_B"] || resource.data.verifierRole in ["DEPARTMENT_B", "DEPT_B"]))
+        || (isDepartment("DEPARTMENT_C") && (resource.data.verifierKey in ["DEPARTMENT_C", "DEPT_C"] || resource.data.verifierRole in ["DEPARTMENT_C", "DEPT_C"]))
+        || (isAdmin() && (resource.data.verifierKey == "ADMIN" || resource.data.verifierRole == "ADMIN"))
+        || (isAuditor() && (resource.data.verifierKey == "AUDITOR" || resource.data.verifierRole == "AUDITOR"))
+      ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status", "comments", "verifiedAt", "rejectedAt", "verifierUserId", "verifierId", "verifierName", "updatedAt"
+      ]);
+      allow delete: if false;
+    }
+
+    // ==========================================================
+    // 4. NOTIFICATIONS (notifications/{notifId})
+    // - User reads and updates (marks as read) only their own notifications
+    // - User can create notification for themselves upon application submission
+    // ==========================================================
+    match /notifications/{notifId} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if signedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if signedIn() && resource.data.userId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]);
+      allow delete: if false;
+    }
+
+    // ==========================================================
+    // 5. CONSENTS (consents/{consentId})
+    // - Citizen reads and updates (grants/denies) own consents
+    // - Department officers and Admin can request consents
+    // ==========================================================
+    match /consents/{consentId} {
+      allow read: if signedIn() && (
+        resource.data.citizenUid == request.auth.uid
+        || resource.data.citizenId == request.auth.uid
+        || isDepartmentOfficer()
+        || isAdmin()
+        || isAuditor()
+      );
+      allow create: if isAdmin() || isDepartmentOfficer();
+      allow update: if signedIn() && (
+        resource.data.citizenId == request.auth.uid || resource.data.citizenUid == request.auth.uid
+      ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status", "grantedAt", "deniedAt", "updatedAt"
+      ]);
+      allow delete: if false;
+    }
+
+    // ==========================================================
+    // 6. DATA EXCHANGES & INTEROPERABILITY (dataExchanges/{id})
+    // - Internal interoperability records: canonical payloads, mapping versions, schemas
+    // - Citizens are STRICTLY DENIED access
+    // - Read/Write restricted to Admin, Auditor, and Department Officers
+    // ==========================================================
+    match /dataExchanges/{exchangeId} {
+      allow read: if isAdmin() || isAuditor() || isDepartmentOfficer();
+      allow create: if isAdmin() || isDepartmentOfficer();
+      allow update, delete: if false;
+    }
+
+    // ==========================================================
+    // 7. INTEGRATION LOGS (integrationLogs/{id})
+    // - Citizens are STRICTLY DENIED access
+    // ==========================================================
+    match /integrationLogs/{logId} {
+      allow read: if isAdmin() || isAuditor();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ==========================================================
+    // 8. AUDIT LOGS (auditLogs/{logId})
+    // - Append-only for all signed-in users (tamper-evident audit trail)
+    // - Read-only for Admin & Auditor (Citizens cannot view audit logs)
+    // - Update & Delete are strictly forbidden
+    // ==========================================================
+    match /auditLogs/{logId} {
+      allow read: if isAdmin() || isAuditor();
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
+    // ==========================================================
+    // 9. WORKFLOWS (workflows/{workflowId})
+    // - Internal workflow orchestration documents
+    // - Citizens cannot read or write directly
+    // ==========================================================
+    match /workflows/{workflowId} {
+      allow read: if isAdmin() || isAuditor() || isDepartmentOfficer();
+      allow write: if isAdmin() || isDepartmentOfficer();
+    }
+
+    // ==========================================================
+    // 10. SERVICES CATALOGUE & DEPARTMENTS REGISTRY
+    // - Public read for authenticated users
+    // - Write restricted to Admin
+    // ==========================================================
+    match /services/{serviceId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /departments/{deptId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ==========================================================
+    // 11. AI ASSISTANT CONVERSATIONS (aiConversations/{conversationId})
+    // - Authenticated users can read/write ONLY their own conversations and messages
+    // - Foreign citizens are strictly forbidden from accessing another user's chat
+    // ==========================================================
+    match /aiConversations/{conversationId} {
+      allow read, delete: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if signedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if signedIn() && (
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid)
+        || isAdmin()
+      );
+
+      match /messages/{messageId} {
+        allow read: if signedIn() && (
+          (get(/databases/$(database)/documents/aiConversations/$(conversationId)).data.userId == request.auth.uid
+          && resource.data.userId == request.auth.uid)
+          || isAdmin()
+        );
+        allow create: if signedIn() && (
+          (get(/databases/$(database)/documents/aiConversations/$(conversationId)).data.userId == request.auth.uid
+          && request.resource.data.userId == request.auth.uid)
+          || isAdmin()
+        );
+        allow update, delete: if false;
+      }
+    }
+
+    // ==========================================================
+    // 12. GOVERNMENT RESIDENT PROFILES (residentProfiles/{uid})
+    // - Document ID must be the authenticated Firebase Auth UID
+    // - Signed-in users can read, create, update their OWN profile only: request.auth.uid == uid
+    // - Admin and Auditor can read authorized profiles
+    // - Department Officers can read their own profile
+    // - Cross-citizen reads and writes are strictly forbidden
+    // ==========================================================
+    match /residentProfiles/{uid} {
+      allow read: if signedIn() && (
+        request.auth.uid == uid
+        || isAdmin()
+        || isAuditor()
+        || (isDepartmentOfficer() && request.auth.uid == uid)
+      );
+      allow create, update: if signedIn() && (
+        (request.auth.uid == uid && request.resource.data.userId == request.auth.uid)
+        || isAdmin()
+      );
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+    }
+  }
+}
+
+

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native builds
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# macOS / Windows
+.DS_Store
+Thumbs.db

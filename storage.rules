@@ -1,0 +1,46 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ==========================================================
+    // 1. PASSPORT & RESIDENT DOCUMENTS (residentDocuments/{userId}/passport/{fileName})
+    // - Files must be strictly under 10 MB (10 * 1024 * 1024 bytes)
+    // - PDF files only
+    // - Accessible only by authenticated owner and admin
+    // ==========================================================
+    match /residentDocuments/{userId}/passport/{fileName} {
+      allow read: if request.auth != null && (
+        request.auth.uid == userId
+        || (request.auth.token.email in [
+          "tammu.admin@mahasetu.gov.in",
+          "shanmugam.admin@mahasetu.gov.in",
+          "tammu@mahasetu.gov.in",
+          "shanmugam@mahasetu.gov.in"
+        ])
+      );
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024
+        && (request.resource.contentType == 'application/pdf' || fileName.matches('.*\\.pdf'));
+
+      allow delete: if request.auth != null && (
+        request.auth.uid == userId
+        || (request.auth.token.email in [
+          "tammu.admin@mahasetu.gov.in",
+          "shanmugam.admin@mahasetu.gov.in",
+          "tammu@mahasetu.gov.in",
+          "shanmugam@mahasetu.gov.in"
+        ])
+      );
+    }
+
+    // ==========================================================
+    // 2. APPLICATION SUPPORTING DOCUMENTS (users/{userId}/applications/{appId}/{fileName})
+    // ==========================================================
+    match /users/{userId}/applications/{appId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
