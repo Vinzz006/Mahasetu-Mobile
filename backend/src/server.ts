@@ -13,7 +13,6 @@ dotenv.config();
 import * as http from 'http';
 import { auth, db, sanitizeFirestorePayload, assertNoUndefinedValues } from '../../lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { DEMO_PASSWORD } from '../../constants/demoData';
 import {
   doc,
   getDoc,
@@ -34,11 +33,22 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 /**
  * Initializes backend administrative Firebase Auth session so server-side queries
  * and verification workflow operations pass Firestore security rules.
+ * Requires ADMIN_SERVICE_EMAIL and ADMIN_SERVICE_PASSWORD in .env
  */
 async function initBackendAdminAuth() {
+  const email = process.env.ADMIN_SERVICE_EMAIL;
+  const password = process.env.ADMIN_SERVICE_PASSWORD;
+
+  if (!email || !password) {
+    console.warn(
+      '[MahaSetu Backend] WARNING: ADMIN_SERVICE_EMAIL and ADMIN_SERVICE_PASSWORD are not set in .env. ' +
+      'The backend will run without an authenticated admin session. ' +
+      'Set these environment variables with a real admin account credentials to enable server-side Firestore access.'
+    );
+    return;
+  }
+
   try {
-    const email = process.env.ADMIN_SERVICE_EMAIL || 'tammu.admin@mahasetu.gov.in';
-    const password = process.env.ADMIN_SERVICE_PASSWORD || DEMO_PASSWORD;
     const cred = await signInWithEmailAndPassword(auth, email, password);
     console.log(`[MahaSetu Backend] Trusted admin session established: ${cred.user.email} (${cred.user.uid})`);
   } catch (err: any) {

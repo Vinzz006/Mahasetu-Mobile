@@ -161,7 +161,7 @@ export default function AuditorReviewScreen() {
               <View style={styles.verifiedTextBox}>
                 <Text style={styles.verifiedTitle}>Auditor Slot Certified</Text>
                 <Text style={styles.verifiedSub}>
-                  Compliance approved by {user?.name || 'Tanushri S'}
+                  Compliance approved by {user?.name || 'Auditor'}
                 </Text>
               </View>
             </View>

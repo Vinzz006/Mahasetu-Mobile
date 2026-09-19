@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authService } from '../services/authService';
 import { UserProfile, UserRole } from '../types';
-import { DemoUser } from '../constants/demoData';
 import { router } from 'expo-router';
 import { Alert } from 'react-native';
 
@@ -22,7 +21,6 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<UserProfile>;
   signUpWithEmail: (email: string, password: string, displayName: string) => Promise<UserProfile>;
   sendPasswordReset: (email: string) => Promise<void>;
-  loginAsDemoUser: (demoUser: DemoUser) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   routeUserByRole: (profile: UserProfile) => void;
@@ -53,16 +51,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubAuth = authService.subscribeToAuth(async (firebaseUser) => {
       if (!firebaseUser) {
-        setUser((prev) => {
-          if (prev && prev.uid.startsWith('demo-')) {
-            setLoading(false);
-            setAuthState(deriveAuthState(prev));
-            return prev;
-          }
-          setLoading(false);
-          setAuthState('Unauthenticated');
-          return null;
-        });
+        setUser(null);
+        setLoading(false);
+        setAuthState('Unauthenticated');
         return;
       }
 
@@ -85,9 +76,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubAuth();
   }, []);
 
-  // Listen to Firestore updates if user has a real UID
+  // Listen to Firestore real-time updates for the authenticated user
   useEffect(() => {
-    if (!user?.uid || user.uid.startsWith('demo-')) return;
+    if (!user?.uid) return;
 
     const unsubscribe = authService.subscribeToUserProfile(user.uid, (updatedProfile) => {
       if (updatedProfile) {
@@ -198,24 +189,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await authService.sendPasswordReset(email);
   };
 
-  const loginAsDemoUser = async (demoUser: DemoUser) => {
-    setLoading(true);
-    setAuthState('Loading');
-    try {
-      const profile = await authService.switchDemoAccount(demoUser);
-      setUser(profile);
-      const state = deriveAuthState(profile);
-      setAuthState(state);
-      routeUserByRole(profile);
-    } catch (e: any) {
-      console.error('Demo authentication error:', e);
-      setAuthState('Unauthenticated');
-      throw e;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const logout = async () => {
     await authService.logout();
     setUser(null);
@@ -251,7 +224,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signInWithEmail,
         signUpWithEmail,
         sendPasswordReset,
-        loginAsDemoUser,
         logout,
         refreshProfile,
         routeUserByRole,

@@ -459,7 +459,7 @@ export default function ResidentDetailsScreen() {
             label="Full Legal Name *"
             value={formData.personalDetails.fullLegalName}
             onChangeText={(t) => updateField('personalDetails', 'fullLegalName', t)}
-            placeholder="e.g. Anusha G."
+            placeholder="e.g. Ramesh Kumar"
             autoCapitalize="words"
           />
 

@@ -32,7 +32,6 @@ export const Config = {
   FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '1:829459489988:web:b5c81579595f1f118ad591',
   FIREBASE_MEASUREMENT_ID: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID || 'G-XPGC7JNSRF',
   API_BASE_URL: resolveApiBaseUrl(),
-  DEMO_MODE: process.env.EXPO_PUBLIC_DEMO_MODE === 'true',
 };
 
 export const config = {
@@ -46,5 +45,4 @@ export const config = {
     measurementId: Config.FIREBASE_MEASUREMENT_ID,
   },
   apiBaseUrl: Config.API_BASE_URL,
-  demoMode: Config.DEMO_MODE,
 };

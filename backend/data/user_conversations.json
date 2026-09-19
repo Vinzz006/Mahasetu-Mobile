@@ -593,6 +593,33 @@
           }
         ]
       }
+    },
+    "cZU9AgwVlCNIPDDg4ei5rW6D6eC2": {
+      "conv_cZU9AgwVlCNIPDDg4ei5rW6D6eC2_1789050228260": {
+        "id": "conv_cZU9AgwVlCNIPDDg4ei5rW6D6eC2_1789050228260",
+        "userId": "cZU9AgwVlCNIPDDg4ei5rW6D6eC2",
+        "title": "Track my application...",
+        "createdAt": "2026-09-10T14:23:56.846Z",
+        "updatedAt": "2026-09-10T14:23:57.228Z",
+        "messages": [
+          {
+            "id": "msg_1789050236846_bqe9h",
+            "conversationId": "conv_cZU9AgwVlCNIPDDg4ei5rW6D6eC2_1789050228260",
+            "userId": "cZU9AgwVlCNIPDDg4ei5rW6D6eC2",
+            "role": "user",
+            "content": "Track my application",
+            "createdAt": "2026-09-10T14:23:56.846Z"
+          },
+          {
+            "id": "msg_1789050237228_ndyod",
+            "conversationId": "conv_cZU9AgwVlCNIPDDg4ei5rW6D6eC2_1789050228260",
+            "userId": "cZU9AgwVlCNIPDDg4ei5rW6D6eC2",
+            "role": "assistant",
+            "content": "Hello **vineshhh006**,\n\nHere is the current status of your submitted applications registered on the **MahaSetu** portal:\n\n---\n\n### 📋 Your Active Applications\n\n#### 1. **Application No: MS-34478**\n* **Service Name:** Employment Assistance & Skill Allowance\n* **Status:** Application Submitted (`APPLICATION_SUBMITTED`)\n* **Submitted On:** September 10, 2026\n* **Verification Progress:** 0 of 5 stages completed\n* **Next Pending Stage:** Stage 1: Department A (Revenue & Civil Supplies)\n* **Action Required by You:** No action required at this time.\n\n---\n\n#### 2. **Application No: MS-67520**\n* **Service Name:** Employment Assistance & Skill Allowance\n* **Status:** Application Submitted (`APPLICATION_SUBMITTED`)\n* **Submitted On:** September 10, 2026\n* **Verification Progress:** 0 of 5 stages completed\n* **Next Pending Stage:** Stage 1: Department A (Revenue & Civil Supplies)\n* **Action Required by You:** No action required at this time.\n\n---\n\n#### 3. **Application No: MS-64261**\n* **Service Name:** Employment Assistance & Skill Allowance\n* **Status:** Application Submitted (`APPLICATION_SUBMITTED`)\n* **Submitted On:** September 10, 2026\n* **Verification Progress:** 0 of 5 stages completed\n* **Next Pending Stage:** Stage 1: Department A (Revenue & Civil Supplies)\n* **Action Required by You:** No action required at this time.\n\n---\n\n### 🔄 What Happens Next?\n\nUnder the **MahaSetu \"Submit Once\" Principle**, you do not need to resubmit documents to different departments. Your applications will automatically progress through the following 5 verification stages:\n\n1. **Stage 1 (Current):** Department A (Revenue & Civil Supplies) — Identity & Civil Registry verification.\n2. **Stage 2:** Department B (Social Welfare & Inclusion) — Entitlement database check.\n3. **Stage 3:** Department C (Labour & Employment Welfare) — Labour registry clearance.\n4. **Stage 4:** Admin — Administrative compliance review.\n5. **Stage 5:** Auditor — Independent audit &",
+            "createdAt": "2026-09-10T14:23:57.228Z"
+          }
+        ]
+      }
     }
   }
 }

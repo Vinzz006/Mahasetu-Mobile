@@ -33,7 +33,7 @@ export default function AuditorDashboardScreen() {
     <View style={styles.container}>
       <Header
         title="Compliance & Audit Portal"
-        subtitle={`Auditor: ${user?.name || 'Tanushri S'}`}
+        subtitle={`Auditor: ${user?.name || 'Auditor'}`}
       />
 
       <ScrollView

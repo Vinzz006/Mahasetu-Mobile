@@ -44,21 +44,21 @@ async function fetchVerifierUids(): Promise<Record<string, { uid: string; name: 
         roleUpper === 'DEPARTMENT_A' ||
         (roleUpper === 'DEPARTMENT_OFFICER' && (data.departmentId === 'DEPT_A' || data.departmentId === 'DEPARTMENT_A'))
       ) {
-        result.DEPARTMENT_A = { uid: docSnap.id, name: data.name || 'Vinesh S' };
+        result.DEPARTMENT_A = { uid: docSnap.id, name: data.name || 'Department Officer A' };
       } else if (
         roleUpper === 'DEPARTMENT_B' ||
         (roleUpper === 'DEPARTMENT_OFFICER' && (data.departmentId === 'DEPT_B' || data.departmentId === 'DEPARTMENT_B'))
       ) {
-        result.DEPARTMENT_B = { uid: docSnap.id, name: data.name || 'Sai Sharavan G' };
+        result.DEPARTMENT_B = { uid: docSnap.id, name: data.name || 'Department Officer B' };
       } else if (
         roleUpper === 'DEPARTMENT_C' ||
         (roleUpper === 'DEPARTMENT_OFFICER' && (data.departmentId === 'DEPT_C' || data.departmentId === 'DEPARTMENT_C'))
       ) {
-        result.DEPARTMENT_C = { uid: docSnap.id, name: data.name || 'Omesh Kaarthik S U' };
+        result.DEPARTMENT_C = { uid: docSnap.id, name: data.name || 'Department Officer C' };
       } else if (roleUpper === 'ADMIN') {
-        result.ADMIN = { uid: docSnap.id, name: data.name || 'Tammu Vedesh Kumar' };
+        result.ADMIN = { uid: docSnap.id, name: data.name || 'Administrator' };
       } else if (roleUpper === 'AUDITOR') {
-        result.AUDITOR = { uid: docSnap.id, name: data.name || 'Tanushri S' };
+        result.AUDITOR = { uid: docSnap.id, name: data.name || 'Auditor' };
       }
     });
   } catch (err) {

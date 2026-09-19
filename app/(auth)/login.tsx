@@ -17,10 +17,9 @@ import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../store/AuthContext';
 import { authService } from '../../services/authService';
-import { DEMO_USERS, DemoUser } from '../../constants/demoData';
 
 export default function LoginScreen() {
-  const { loginAsDemoUser, signInWithEmail, signUpWithEmail, sendPasswordReset } = useAuth();
+  const { signInWithEmail, signUpWithEmail, sendPasswordReset } = useAuth();
 
   // Mode: 'signin' | 'register'
   const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
@@ -32,9 +31,6 @@ export default function LoginScreen() {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  // Demo loading state
-  const [loadingDemoId, setLoadingDemoId] = useState<string | null>(null);
 
   // Forgot Password Modal State
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -123,18 +119,6 @@ export default function LoginScreen() {
       Alert.alert('Reset Error', friendlyMessage);
     } finally {
       setSendingReset(false);
-    }
-  };
-
-  // Handle Demo Account Login
-  const handleSelectDemo = async (demo: DemoUser) => {
-    setLoadingDemoId(demo.id);
-    try {
-      await loginAsDemoUser(demo);
-    } catch (e: any) {
-      Alert.alert('Demo Login Error', e.message || 'Failed to authenticate demo account.');
-    } finally {
-      setLoadingDemoId(null);
     }
   };
 
@@ -404,112 +388,6 @@ export default function LoginScreen() {
           </View>
         </Modal>
 
-        {/* Demo Accounts Quick-Switch Section */}
-        <View style={styles.demoSection}>
-          <View style={styles.demoHeaderRow}>
-            <Ionicons name="people-circle-outline" size={22} color={Colors.primary} />
-            <Text style={styles.demoSectionTitle}>Official Demo Persona Switcher</Text>
-          </View>
-          <Text style={styles.demoSectionDesc}>
-            Select any official persona to test role-isolated dashboards with authentic Firebase Authentication:
-          </Text>
-
-          {/* Citizens */}
-          <Text style={styles.categoryLabel}>CITIZENS (Self-Service & Submit-Once)</Text>
-          {DEMO_USERS.filter((u) => u.role === 'citizen').map((demo) => (
-            <TouchableOpacity
-              key={demo.id}
-              style={styles.demoCard}
-              onPress={() => handleSelectDemo(demo)}
-              disabled={loadingDemoId !== null || submitting}
-            >
-              <View style={styles.avatarCircle}>
-                <Ionicons name="person" size={18} color={Colors.primary} />
-              </View>
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoRole}>Role: Citizen • {demo.city}</Text>
-              </View>
-              {loadingDemoId === demo.id ? (
-                <ActivityIndicator color={Colors.primary} size="small" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-              )}
-            </TouchableOpacity>
-          ))}
-
-          {/* Department Officers */}
-          <Text style={styles.categoryLabel}>DEPARTMENT OFFICERS (Verification Queue)</Text>
-          {DEMO_USERS.filter((u) => u.role === 'department_officer').map((demo) => (
-            <TouchableOpacity
-              key={demo.id}
-              style={[styles.demoCard, styles.deptCard]}
-              onPress={() => handleSelectDemo(demo)}
-              disabled={loadingDemoId !== null || submitting}
-            >
-              <View style={[styles.avatarCircle, styles.deptAvatar]}>
-                <Ionicons name="business" size={18} color={Colors.accent} />
-              </View>
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoRole}>{demo.departmentName}</Text>
-              </View>
-              {loadingDemoId === demo.id ? (
-                <ActivityIndicator color={Colors.accent} size="small" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-              )}
-            </TouchableOpacity>
-          ))}
-
-          {/* Administrators */}
-          <Text style={styles.categoryLabel}>ADMINISTRATORS (Approvals, Matrix & Systems)</Text>
-          {DEMO_USERS.filter((u) => u.role === 'admin').map((demo) => (
-            <TouchableOpacity
-              key={demo.id}
-              style={[styles.demoCard, styles.adminCard]}
-              onPress={() => handleSelectDemo(demo)}
-              disabled={loadingDemoId !== null || submitting}
-            >
-              <View style={[styles.avatarCircle, styles.adminAvatar]}>
-                <Ionicons name="settings" size={18} color="#D97706" />
-              </View>
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoRole}>State Administrator • HQ</Text>
-              </View>
-              {loadingDemoId === demo.id ? (
-                <ActivityIndicator color="#D97706" size="small" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-              )}
-            </TouchableOpacity>
-          ))}
-
-          {/* Auditor */}
-          <Text style={styles.categoryLabel}>INDEPENDENT AUDITOR (Compliance & Verification)</Text>
-          {DEMO_USERS.filter((u) => u.role === 'auditor').map((demo) => (
-            <TouchableOpacity
-              key={demo.id}
-              style={[styles.demoCard, styles.auditorCard]}
-              onPress={() => handleSelectDemo(demo)}
-              disabled={loadingDemoId !== null || submitting}
-            >
-              <View style={[styles.avatarCircle, styles.auditorAvatar]}>
-                <Ionicons name="shield" size={18} color="#7C3AED" />
-              </View>
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoRole}>Compliance Auditor • Read-Only Logs + Verification</Text>
-              </View>
-              {loadingDemoId === demo.id ? (
-                <ActivityIndicator color="#7C3AED" size="small" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -773,85 +651,5 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontSize: Typography.fontSize.xs,
     fontWeight: '700',
-  },
-  demoSection: {
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-  },
-  demoHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  demoSectionTitle: {
-    fontSize: Typography.fontSize.sm + 1,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  demoSectionDesc: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.textSecondary,
-    marginTop: 2,
-    marginBottom: Spacing.sm,
-  },
-  categoryLabel: {
-    fontSize: Typography.fontSize.xs - 1,
-    fontWeight: '700',
-    color: Colors.textMuted,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
-    letterSpacing: 0.5,
-  },
-  demoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.sm + 2,
-    marginBottom: Spacing.xs,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  deptCard: {
-    borderColor: '#CCFBF1',
-  },
-  adminCard: {
-    borderColor: '#FEF3C7',
-  },
-  auditorCard: {
-    borderColor: '#EDE9FE',
-  },
-  avatarCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primarySubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.sm,
-  },
-  deptAvatar: {
-    backgroundColor: Colors.accentLight,
-  },
-  adminAvatar: {
-    backgroundColor: '#FEF3C7',
-  },
-  auditorAvatar: {
-    backgroundColor: '#EDE9FE',
-  },
-  demoInfo: {
-    flex: 1,
-  },
-  demoName: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  demoRole: {
-    fontSize: Typography.fontSize.xs - 1,
-    color: Colors.textSecondary,
-    marginTop: 1,
   },
 });
