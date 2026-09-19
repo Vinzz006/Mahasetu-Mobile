@@ -12,18 +12,18 @@ async function runE2E() {
 
   // 1. Citizen Login
   console.log('[Test 1: Citizen Authentic Demo Login]');
-  const anushaDemo = DEMO_USERS.find((u) => u.email === 'anusha@mahasetu.gov.in')!;
-  const anushaProfile = await authService.switchDemoAccount(anushaDemo);
+  const priyaDemo = DEMO_USERS.find((u) => u.email === 'citizen.priya@mahasetu.gov.in')!;
+  const priyaProfile = await authService.switchDemoAccount(priyaDemo);
 
   console.log('  ✓ Authenticated with Firebase Auth');
   console.log(`  ✓ auth.currentUser.uid: ${auth.currentUser?.uid}`);
-  console.log(`  ✓ anushaProfile.uid: ${anushaProfile.uid}`);
-  console.log(`  ✓ Profile role: ${anushaProfile.role}, status: ${anushaProfile.status}`);
+  console.log(`  ✓ priyaProfile.uid: ${priyaProfile.uid}`);
+  console.log(`  ✓ Profile role: ${priyaProfile.role}, status: ${priyaProfile.status}`);
 
-  if (!auth.currentUser || auth.currentUser.uid !== anushaProfile.uid) {
+  if (!auth.currentUser || auth.currentUser.uid !== priyaProfile.uid) {
     throw new Error('FAILED: auth.currentUser UID does not match profile UID!');
   }
-  if (anushaProfile.uid.startsWith('demo-')) {
+  if (priyaProfile.uid.startsWith('demo-')) {
     throw new Error('FAILED: UID is still using fake demo- prefix!');
   }
 
@@ -33,7 +33,7 @@ async function runE2E() {
     'srv-001',
     'Integrated Citizen Benefit',
     'ICB-2026',
-    anushaProfile,
+    priyaProfile,
     {
       annualIncome: 180000,
       bankAccount: '123456789012',
@@ -53,38 +53,38 @@ async function runE2E() {
 
   // 3. Department Officers Verification
   console.log('\n[Test 3: Department A Officer Verification]');
-  const vineshDemo = DEMO_USERS.find((u) => u.email === 'vinesh.dept_a@mahasetu.gov.in')!;
-  const vineshProfile = await authService.switchDemoAccount(vineshDemo);
-  console.log(`  ✓ Vinesh signed in: UID = ${vineshProfile.uid}, role = ${vineshProfile.role}`);
-  await verificationService.verifyApplication(testApp.id, vineshProfile, 'Revenue & Civil Supplies verified.');
+  const rameshDemo = DEMO_USERS.find((u) => u.email === 'officer.dept_a@mahasetu.gov.in')!;
+  const rameshProfile = await authService.switchDemoAccount(rameshDemo);
+  console.log(`  ✓ Ramesh signed in: UID = ${rameshProfile.uid}, role = ${rameshProfile.role}`);
+  await verificationService.verifyApplication(testApp.id, rameshProfile, 'Revenue & Civil Supplies verified.');
   console.log('  ✓ Department A verification recorded successfully');
 
   console.log('\n[Test 4: Department B Officer Verification]');
-  const saiDemo = DEMO_USERS.find((u) => u.email === 'sai.dept_b@mahasetu.gov.in')!;
-  const saiProfile = await authService.switchDemoAccount(saiDemo);
-  console.log(`  ✓ Sai signed in: UID = ${saiProfile.uid}, role = ${saiProfile.role}`);
-  await verificationService.verifyApplication(testApp.id, saiProfile, 'Social Welfare criteria verified.');
+  const sureshDemo = DEMO_USERS.find((u) => u.email === 'officer.dept_b@mahasetu.gov.in')!;
+  const sureshProfile = await authService.switchDemoAccount(sureshDemo);
+  console.log(`  ✓ Suresh signed in: UID = ${sureshProfile.uid}, role = ${sureshProfile.role}`);
+  await verificationService.verifyApplication(testApp.id, sureshProfile, 'Social Welfare criteria verified.');
   console.log('  ✓ Department B verification recorded successfully');
 
   console.log('\n[Test 5: Department C Officer Verification]');
-  const omeshDemo = DEMO_USERS.find((u) => u.email === 'omesh.dept_c@mahasetu.gov.in')!;
-  const omeshProfile = await authService.switchDemoAccount(omeshDemo);
-  console.log(`  ✓ Omesh signed in: UID = ${omeshProfile.uid}, role = ${omeshProfile.role}`);
-  await verificationService.verifyApplication(testApp.id, omeshProfile, 'Labour welfare criteria verified.');
+  const maheshDemo = DEMO_USERS.find((u) => u.email === 'officer.dept_c@mahasetu.gov.in')!;
+  const maheshProfile = await authService.switchDemoAccount(maheshDemo);
+  console.log(`  ✓ Mahesh signed in: UID = ${maheshProfile.uid}, role = ${maheshProfile.role}`);
+  await verificationService.verifyApplication(testApp.id, maheshProfile, 'Labour welfare criteria verified.');
   console.log('  ✓ Department C verification recorded successfully');
 
   console.log('\n[Test 6: State Administrator Verification]');
-  const tammuDemo = DEMO_USERS.find((u) => u.email === 'tammu.admin@mahasetu.gov.in')!;
-  const tammuProfile = await authService.switchDemoAccount(tammuDemo);
-  console.log(`  ✓ Tammu signed in: UID = ${tammuProfile.uid}, role = ${tammuProfile.role}`);
-  await verificationService.verifyApplication(testApp.id, tammuProfile, 'Administrative review certified.');
+  const anilDemo = DEMO_USERS.find((u) => u.email === 'admin.onboarding@mahasetu.gov.in')!;
+  const anilProfile = await authService.switchDemoAccount(anilDemo);
+  console.log(`  ✓ Anil signed in: UID = ${anilProfile.uid}, role = ${anilProfile.role}`);
+  await verificationService.verifyApplication(testApp.id, anilProfile, 'Administrative review certified.');
   console.log('  ✓ Admin verification recorded successfully');
 
   console.log('\n[Test 7: Compliance Auditor Final Verification (5/5)]');
-  const tanushriDemo = DEMO_USERS.find((u) => u.email === 'tanushri.auditor@mahasetu.gov.in')!;
-  const tanushriProfile = await authService.switchDemoAccount(tanushriDemo);
-  console.log(`  ✓ Tanushri signed in: UID = ${tanushriProfile.uid}, role = ${tanushriProfile.role}`);
-  await verificationService.verifyApplication(testApp.id, tanushriProfile, 'Compliance audit certified 5/5.');
+  const nehaDemo = DEMO_USERS.find((u) => u.email === 'auditor.compliance@mahasetu.gov.in')!;
+  const nehaProfile = await authService.switchDemoAccount(nehaDemo);
+  console.log(`  ✓ Neha signed in: UID = ${nehaProfile.uid}, role = ${nehaProfile.role}`);
+  await verificationService.verifyApplication(testApp.id, nehaProfile, 'Compliance audit certified 5/5.');
   console.log('  ✓ Auditor verification recorded successfully');
 
   // Verify final application state

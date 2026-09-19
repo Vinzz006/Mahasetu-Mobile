@@ -10,7 +10,7 @@ async function testAiIp() {
   console.log('Testing aiService network reachability...');
   console.log('Config.API_BASE_URL is:', Config.API_BASE_URL);
 
-  const cred = await signInWithEmailAndPassword(auth, 'anusha@mahasetu.gov.in', DEMO_PASSWORD);
+  const cred = await signInWithEmailAndPassword(auth, 'citizen.priya@mahasetu.gov.in', DEMO_PASSWORD);
   console.log('Authenticated UID:', cred.user.uid);
 
   // 1. Test getHistory

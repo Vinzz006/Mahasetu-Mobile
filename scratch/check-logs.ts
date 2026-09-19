@@ -7,7 +7,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { DEMO_PASSWORD } from '../constants/demoData';
 
 async function check() {
-  await signInWithEmailAndPassword(auth, 'tammu.admin@mahasetu.gov.in', DEMO_PASSWORD);
+  await signInWithEmailAndPassword(auth, 'admin.onboarding@mahasetu.gov.in', DEMO_PASSWORD);
   const snap = await getDocs(collection(db, 'integrationLogs'));
   console.log('integrationLogs count:', snap.size);
   snap.docs.forEach((d) => {

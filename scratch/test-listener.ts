@@ -9,12 +9,12 @@ import { UserProfile } from '../types';
 
 async function testListeners() {
   console.log('Testing realtime listeners with UPPERCASE role...');
-  const userA = await signInWithEmailAndPassword(auth, 'anusha@mahasetu.gov.in', DEMO_PASSWORD);
+  const userA = await signInWithEmailAndPassword(auth, 'citizen.priya@mahasetu.gov.in', DEMO_PASSWORD);
 
   const mockProfile: UserProfile = {
     uid: userA.user.uid,
-    email: 'anusha@mahasetu.gov.in',
-    name: 'Anusha G.',
+    email: 'citizen.priya@mahasetu.gov.in',
+    name: 'Priya Sharma',
     role: 'CITIZEN', // Uppercase!
     status: 'APPROVED',
     departmentId: null,

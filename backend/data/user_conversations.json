@@ -69,7 +69,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "assistant",
-            "content": "Hello Anusha,\n\nThe **\"Submit Once\"** principle is a foundational feature of the MahaSetu platform designed to make accessing government services simple, efficient, and hassle-free for citizens.\n\nHere is how it works:\n\n* **Single Submission:** You submit your personal details, documents, and certificates only once when applying for a service.\n* **Cross-Departmental Coordination:** MahaSetu securely orchestrates verification across various participating government departments (such as Revenue, Social Welfare, and Labour) on your behalf.\n* **No Redundant Paperwork:** You never need to resubmit identical documents or re-verify details separately for different departments or stages.\n\nThis approach eliminates unnecessary paperwork, speeds up the verification workflow, and ensures your data is shared securely across departments only with your explicit consent. \n\nPlease let me know if you would like an update on any of your active applications!",
+            "content": "Hello Priya,\n\nThe **\"Submit Once\"** principle is a foundational feature of the MahaSetu platform designed to make accessing government services simple, efficient, and hassle-free for citizens.\n\nHere is how it works:\n\n* **Single Submission:** You submit your personal details, documents, and certificates only once when applying for a service.\n* **Cross-Departmental Coordination:** MahaSetu securely orchestrates verification across various participating government departments (such as Revenue, Social Welfare, and Labour) on your behalf.\n* **No Redundant Paperwork:** You never need to resubmit identical documents or re-verify details separately for different departments or stages.\n\nThis approach eliminates unnecessary paperwork, speeds up the verification workflow, and ensures your data is shared securely across departments only with your explicit consent. \n\nPlease let me know if you would like an update on any of your active applications!",
             "createdAt": "2026-09-09T05:22:32.539Z"
           },
           {
@@ -77,7 +77,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "user",
-            "content": "ANUSHA_PRIVATE_TEST_123",
+            "content": "PRIYA_PRIVATE_TEST_123",
             "createdAt": "2026-09-09T06:17:07.211Z"
           },
           {
@@ -85,7 +85,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "assistant",
-            "content": "Hello Anusha,\n\nHere is an overview of your active applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 (Integrated Citizen Benefit)\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 verification stages completed.\n* **Details:** All departmental verifications, administrative review, and independent compliance audits are complete.\n\n---\n\n### 2. Application #MS-40778 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed.\n* **Current Stage:** Pending **Stage 5: Independent Compliance Auditor**.\n* **Action Required:** None (No action required from you at this time).\n\n---\n\n### 3. Application #MS-70485 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed.\n* **Current Stage:** Pending **Stage 5: Independent Compliance Auditor**.\n* **Action Required:** None (No action required from you at this time).\n\n---\n\nPlease let me know if you have any questions about these applications or how MahaSetu works!",
+            "content": "Hello Priya,\n\nHere is an overview of your active applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 (Integrated Citizen Benefit)\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 verification stages completed.\n* **Details:** All departmental verifications, administrative review, and independent compliance audits are complete.\n\n---\n\n### 2. Application #MS-40778 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed.\n* **Current Stage:** Pending **Stage 5: Independent Compliance Auditor**.\n* **Action Required:** None (No action required from you at this time).\n\n---\n\n### 3. Application #MS-70485 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed.\n* **Current Stage:** Pending **Stage 5: Independent Compliance Auditor**.\n* **Action Required:** None (No action required from you at this time).\n\n---\n\nPlease let me know if you have any questions about these applications or how MahaSetu works!",
             "createdAt": "2026-09-09T06:17:07.332Z"
           },
           {
@@ -93,7 +93,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "user",
-            "content": "ANUSHA_PRIVATE_TEST_123",
+            "content": "PRIYA_PRIVATE_TEST_123",
             "createdAt": "2026-09-09T06:17:35.611Z"
           },
           {
@@ -101,7 +101,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "assistant",
-            "content": "Hello Anusha,\n\nHere is the current status of your applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 — Integrated Citizen Benefit\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 stages completed\n* **Verification Details:** \n  * Stage 1 (Revenue & Civil Supplies): Verified\n  * Stage 2 (Social Welfare & Inclusion): Verified\n  * Stage 3 (Labour & Employment Welfare): Verified\n  * Stage 4 (State Administration): Verified\n  * Stage 5 (Independent Compliance Auditor): Verified\n* **Action Required:** None. Your application is fully verified.\n\n---\n\n### 2. Application #MS-40778 — Integrated Citizen Benefit\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of ",
+            "content": "Hello Priya,\n\nHere is the current status of your applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 — Integrated Citizen Benefit\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 stages completed\n* **Verification Details:** \n  * Stage 1 (Revenue & Civil Supplies): Verified\n  * Stage 2 (Social Welfare & Inclusion): Verified\n  * Stage 3 (Labour & Employment Welfare): Verified\n  * Stage 4 (State Administration): Verified\n  * Stage 5 (Independent Compliance Auditor): Verified\n* **Action Required:** None. Your application is fully verified.\n\n---\n\n### 2. Application #MS-40778 — Integrated Citizen Benefit\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of ",
             "createdAt": "2026-09-09T06:17:35.912Z"
           },
           {
@@ -117,7 +117,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "assistant",
-            "content": "Hello Anusha,\n\nYour ping was received successfully! I am your **MahaSetu AI Assistant**, ready to assist you.\n\nHere is a quick summary of your active applications on record:\n\n* **Application #MS-71926** (Integrated Citizen Benefit)\n  * **Status:** **APPLICATION VERIFIED** (5/5 stages completed)\n* **Application #MS-40778** (Integrated Citizen Benefit)\n  * **Status:** **UNDER VERIFICATION** (4/5 stages completed — pending Stage 5: Independent Compliance Auditor)\n* **Application #MS-70485** (Integrated Citizen Benefit)\n  * **Status:** **UNDER VERIFICATION** (4/5 stages completed — pending Stage 5: Independent Compliance Auditor)\n\nPlease let me know if you would like detailed information about any specific application, statutory consent, or how the verification process works!",
+            "content": "Hello Priya,\n\nYour ping was received successfully! I am your **MahaSetu AI Assistant**, ready to assist you.\n\nHere is a quick summary of your active applications on record:\n\n* **Application #MS-71926** (Integrated Citizen Benefit)\n  * **Status:** **APPLICATION VERIFIED** (5/5 stages completed)\n* **Application #MS-40778** (Integrated Citizen Benefit)\n  * **Status:** **UNDER VERIFICATION** (4/5 stages completed — pending Stage 5: Independent Compliance Auditor)\n* **Application #MS-70485** (Integrated Citizen Benefit)\n  * **Status:** **UNDER VERIFICATION** (4/5 stages completed — pending Stage 5: Independent Compliance Auditor)\n\nPlease let me know if you would like detailed information about any specific application, statutory consent, or how the verification process works!",
             "createdAt": "2026-09-09T06:56:27.457Z"
           },
           {
@@ -125,7 +125,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "user",
-            "content": "ANUSHA_PRIVATE_TEST_123",
+            "content": "PRIYA_PRIVATE_TEST_123",
             "createdAt": "2026-09-09T06:57:21.929Z"
           },
           {
@@ -133,7 +133,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "assistant",
-            "content": "Hello Anusha,\n\nHere is the current summary and status of your active applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 (Integrated Citizen Benefit)\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 verification stages completed\n* **Stage Breakdown:**\n  * **Stage 1 (Revenue & Civil Supplies):** Verified\n  * **Stage 2 (Social Welfare & Inclusion):** Verified\n  * **Stage 3 (Labour & Employment Welfare):** Verified\n  * **Stage 4 (State Administration):** Verified\n  * **Stage 5 (Independent Compliance Auditor):** Verified\n* **Action Required:** None. Your application is fully verified.\n\n---\n\n### 2. Application #MS-40778 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Current Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\n### 3. Application #MS-70485 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Current Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\nPlease let me know if you have any questions regarding statutory consent, departmental workflows, or your application status!",
+            "content": "Hello Priya,\n\nHere is the current summary and status of your active applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 (Integrated Citizen Benefit)\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 verification stages completed\n* **Stage Breakdown:**\n  * **Stage 1 (Revenue & Civil Supplies):** Verified\n  * **Stage 2 (Social Welfare & Inclusion):** Verified\n  * **Stage 3 (Labour & Employment Welfare):** Verified\n  * **Stage 4 (State Administration):** Verified\n  * **Stage 5 (Independent Compliance Auditor):** Verified\n* **Action Required:** None. Your application is fully verified.\n\n---\n\n### 2. Application #MS-40778 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Current Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\n### 3. Application #MS-70485 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Current Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\nPlease let me know if you have any questions regarding statutory consent, departmental workflows, or your application status!",
             "createdAt": "2026-09-09T06:57:22.032Z"
           },
           {
@@ -141,7 +141,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "user",
-            "content": "ANUSHA_PRIVATE_TEST_123",
+            "content": "PRIYA_PRIVATE_TEST_123",
             "createdAt": "2026-09-09T06:58:29.207Z"
           },
           {
@@ -149,7 +149,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "assistant",
-            "content": "Hello Anusha,\n\nHere is the current status summary of your applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 (Integrated Citizen Benefit)\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 verification stages completed\n* **Stage Breakdown:**\n  * Stage 1 (Revenue & Civil Supplies): Verified\n  * Stage 2 (Social Welfare & Inclusion): Verified\n  * Stage 3 (Labour & Employment Welfare): Verified\n  * Stage 4 (State Administration): Verified\n  * Stage 5 (Independent Compliance Auditor): Verified\n* **Action Required:** None. Your application is fully verified.\n\n---\n\n### 2. Application #MS-40778 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Next Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\n### 3. Application #MS-70485 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Next Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\nPlease let me know if you need details about any specific stage, statutory consent, or how the verification process works!",
+            "content": "Hello Priya,\n\nHere is the current status summary of your applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 (Integrated Citizen Benefit)\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 verification stages completed\n* **Stage Breakdown:**\n  * Stage 1 (Revenue & Civil Supplies): Verified\n  * Stage 2 (Social Welfare & Inclusion): Verified\n  * Stage 3 (Labour & Employment Welfare): Verified\n  * Stage 4 (State Administration): Verified\n  * Stage 5 (Independent Compliance Auditor): Verified\n* **Action Required:** None. Your application is fully verified.\n\n---\n\n### 2. Application #MS-40778 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Next Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\n### 3. Application #MS-70485 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Next Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\nPlease let me know if you need details about any specific stage, statutory consent, or how the verification process works!",
             "createdAt": "2026-09-09T06:58:29.357Z"
           },
           {
@@ -165,7 +165,7 @@
             "conversationId": "conv_pqQ8FxhU7oQWYLQKNsppBwEa5Ei2_1788930062990",
             "userId": "pqQ8FxhU7oQWYLQKNsppBwEa5Ei2",
             "role": "assistant",
-            "content": "Hello Anusha,\n\nYour mobile connectivity ping was received successfully! Everything is working properly on your connection.\n\nHere is the current status of your active applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 (Integrated Citizen Benefit)\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 verification stages completed\n* **Stage Breakdown:**\n  * **Stage 1:** Revenue & Civil Supplies — Verified\n  * **Stage 2:** Social Welfare & Inclusion — Verified\n  * **Stage 3:** Labour & Employment Welfare — Verified\n  * **Stage 4:** State Administration — Verified\n  * **Stage 5:** Independent Compliance Auditor — Verified\n* **Action Required:** None. Your application is fully verified.\n\n---\n\n### 2. Application #MS-40778 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Current Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\n### 3. Application #MS-70485 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Current Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\nPlease let me know if you have any questions about your applications, statutory consent, or the verification workflow!",
+            "content": "Hello Priya,\n\nYour mobile connectivity ping was received successfully! Everything is working properly on your connection.\n\nHere is the current status of your active applications on the MahaSetu platform:\n\n### 1. Application #MS-71926 (Integrated Citizen Benefit)\n* **Status:** **APPLICATION VERIFIED** (Fully Verified)\n* **Progress:** 5 of 5 verification stages completed\n* **Stage Breakdown:**\n  * **Stage 1:** Revenue & Civil Supplies — Verified\n  * **Stage 2:** Social Welfare & Inclusion — Verified\n  * **Stage 3:** Labour & Employment Welfare — Verified\n  * **Stage 4:** State Administration — Verified\n  * **Stage 5:** Independent Compliance Auditor — Verified\n* **Action Required:** None. Your application is fully verified.\n\n---\n\n### 2. Application #MS-40778 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Current Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\n### 3. Application #MS-70485 (Integrated Citizen Benefit)\n* **Status:** **UNDER VERIFICATION**\n* **Progress:** 4 of 5 verification stages completed\n* **Current Pending Stage:** Stage 5: Independent Compliance Auditor\n* **Action Required:** None (No action required from you at this time).\n\n---\n\nPlease let me know if you have any questions about your applications, statutory consent, or the verification workflow!",
             "createdAt": "2026-09-09T07:04:21.874Z"
           }
         ]
@@ -216,7 +216,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "user",
-            "content": "MUTHUMAYIL_PRIVATE_TEST_456",
+            "content": "RAHUL_PRIVATE_TEST_456",
             "createdAt": "2026-09-09T06:17:18.979Z"
           },
           {
@@ -224,7 +224,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "assistant",
-            "content": "Hello Muthumayil M.,\n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Overview**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 verification stages completed\n\n---\n\n### **Verification Stage Breakdown**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Next pending review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n* **Stage 4: Admin (State Administration):** **PENDING**\n",
+            "content": "Hello Rahul Verma,\n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Overview**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 verification stages completed\n\n---\n\n### **Verification Stage Breakdown**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Next pending review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n* **Stage 4: Admin (State Administration):** **PENDING**\n",
             "createdAt": "2026-09-09T06:17:19.096Z"
           },
           {
@@ -232,7 +232,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "user",
-            "content": "MUTHUMAYIL_PRIVATE_TEST_456",
+            "content": "RAHUL_PRIVATE_TEST_456",
             "createdAt": "2026-09-09T06:17:47.079Z"
           },
           {
@@ -240,7 +240,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "assistant",
-            "content": "Hello Muthumayil M.,\n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Details**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n* **Action Required:** None at this time\n\n---\n\n### **Verification Stage Breakdown**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Currently awaiting review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n* **Stage 4: Admin (State Administration):** **PENDING**\n* **Stage 5: Auditor (Independent Compliance Auditor):** **PENDING**\n\n---\n\n### **Next Actions**\nYour application is queued for **Stage 1 verification** with the Revenue & Civil Supplies department. You do not need to resubmit any documents or take further action right now. You will receive real-time updates as your application progresses through each verification stage.",
+            "content": "Hello Rahul Verma,\n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Details**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n* **Action Required:** None at this time\n\n---\n\n### **Verification Stage Breakdown**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Currently awaiting review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n* **Stage 4: Admin (State Administration):** **PENDING**\n* **Stage 5: Auditor (Independent Compliance Auditor):** **PENDING**\n\n---\n\n### **Next Actions**\nYour application is queued for **Stage 1 verification** with the Revenue & Civil Supplies department. You do not need to resubmit any documents or take further action right now. You will receive real-time updates as your application progresses through each verification stage.",
             "createdAt": "2026-09-09T06:17:47.200Z"
           },
           {
@@ -256,7 +256,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "assistant",
-            "content": "Hello Muthumayil M.,\n\nHow can I assist you today? \n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Details**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n\n### **Current Stage**\n* **Next Pending Action:** Stage 1 — Department A (Revenue & Civil Supplies) review.\n\nPlease let me know if you have any questions about how MahaSetu works, citizen consent, or your application status!",
+            "content": "Hello Rahul Verma,\n\nHow can I assist you today? \n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Details**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n\n### **Current Stage**\n* **Next Pending Action:** Stage 1 — Department A (Revenue & Civil Supplies) review.\n\nPlease let me know if you have any questions about how MahaSetu works, citizen consent, or your application status!",
             "createdAt": "2026-09-09T06:19:27.697Z"
           },
           {
@@ -264,7 +264,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "user",
-            "content": "MUTHUMAYIL_PRIVATE_TEST_456",
+            "content": "RAHUL_PRIVATE_TEST_456",
             "createdAt": "2026-09-09T06:57:45.354Z"
           },
           {
@@ -272,7 +272,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "assistant",
-            "content": "Hello Muthumayil M.,\n\nHere is the details and status of your application registered on the MahaSetu platform:\n\n### **Application Overview**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n* **Action Required:** None at this time\n\n---\n\n### **Verification Stage Breakdown**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Next pending review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n* **Stage 4: Admin (State Administration):** **PENDING**\n* **Stage 5: Auditor (Independent Compliance Auditor):** **PENDING**\n\n---\n\n### **Next Steps**\nYour application is currently queued for **Stage 1 verification** with the Revenue & Civil Supplies department. Under the \"Submit Once\" principle, you do not need to resubmit documents or visit any office. You will receive real-time updates as your application progresses.\n\nIf you have any questions regarding your application or the MahaSetu verification process, feel free to ask!",
+            "content": "Hello Rahul Verma,\n\nHere is the details and status of your application registered on the MahaSetu platform:\n\n### **Application Overview**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n* **Action Required:** None at this time\n\n---\n\n### **Verification Stage Breakdown**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Next pending review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n* **Stage 4: Admin (State Administration):** **PENDING**\n* **Stage 5: Auditor (Independent Compliance Auditor):** **PENDING**\n\n---\n\n### **Next Steps**\nYour application is currently queued for **Stage 1 verification** with the Revenue & Civil Supplies department. Under the \"Submit Once\" principle, you do not need to resubmit documents or visit any office. You will receive real-time updates as your application progresses.\n\nIf you have any questions regarding your application or the MahaSetu verification process, feel free to ask!",
             "createdAt": "2026-09-09T06:57:45.472Z"
           },
           {
@@ -280,7 +280,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "user",
-            "content": "MUTHUMAYIL_PRIVATE_TEST_456",
+            "content": "RAHUL_PRIVATE_TEST_456",
             "createdAt": "2026-09-09T06:58:42.460Z"
           },
           {
@@ -288,7 +288,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "assistant",
-            "content": "Hello Muthumayil M.,\n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Overview**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n* **Action Required:** None at this time\n\n---\n\n### **5-Stage Verification Status**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Currently awaiting initial review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n",
+            "content": "Hello Rahul Verma,\n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Overview**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n* **Action Required:** None at this time\n\n---\n\n### **5-Stage Verification Status**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Currently awaiting initial review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n",
             "createdAt": "2026-09-09T06:58:42.584Z"
           },
           {
@@ -304,7 +304,7 @@
             "conversationId": "conv_LfgEn3maJoXAOYeg7pScU1wgocB3_1788930075856",
             "userId": "LfgEn3maJoXAOYeg7pScU1wgocB3",
             "role": "assistant",
-            "content": "Hello Muthumayil M.,\n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Details**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n* **Action Required:** None at this time\n\n---\n\n### **5-Stage Verification Workflow**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Currently awaiting review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n* **Stage 4: Admin (State Administration):** **PENDING**\n* **Stage 5: Auditor (Independent Compliance Auditor):** **PENDING**\n\n---\n\n### **Next Steps**\nYour application is queued for **Stage 1 verification** with the Revenue & Civil Supplies department. \n\nThanks to MahaSetu's **\"Submit Once\"** principle, you do not need to resubmit documents or visit any departmental offices. You will receive automatic updates in real-time and via SMS as your application progresses through each verification stage.\n\nPlease let me know if you have any questions!",
+            "content": "Hello Rahul Verma,\n\nHere is the current status of your application on the MahaSetu platform:\n\n### **Application Details**\n* **Application Number:** MS-13692\n* **Service Name:** Education Support Scheme\n* **Submission Date:** September 8, 2026\n* **Overall Status:** Application Submitted\n* **Verification Progress:** 0 of 5 stages completed\n* **Action Required:** None at this time\n\n---\n\n### **5-Stage Verification Workflow**\n* **Stage 1: Department A (Revenue & Civil Supplies):** **PENDING** *(Currently awaiting review)*\n* **Stage 2: Department B (Social Welfare & Inclusion):** **PENDING**\n* **Stage 3: Department C (Labour & Employment Welfare):** **PENDING**\n* **Stage 4: Admin (State Administration):** **PENDING**\n* **Stage 5: Auditor (Independent Compliance Auditor):** **PENDING**\n\n---\n\n### **Next Steps**\nYour application is queued for **Stage 1 verification** with the Revenue & Civil Supplies department. \n\nThanks to MahaSetu's **\"Submit Once\"** principle, you do not need to resubmit documents or visit any departmental offices. You will receive automatic updates in real-time and via SMS as your application progresses through each verification stage.\n\nPlease let me know if you have any questions!",
             "createdAt": "2026-09-09T06:59:58.000Z"
           }
         ]
@@ -379,7 +379,7 @@
             "conversationId": "conv_kYVqBPzkOFcS4O2WTaa2jO8D5M93_1788930095887",
             "userId": "kYVqBPzkOFcS4O2WTaa2jO8D5M93",
             "role": "assistant",
-            "content": "Hello Akshita S S! \n\nWhile you currently do not have an active application on record in MahaSetu, I would be happy to explain how our verification process works.\n\nMahaSetu operates on the **\"Submit Once\" principle**, meaning citizens submit their information and certificates only once. The system then securely coordinates verification across multiple departments so you never have to resubmit identical documents.\n\nThe platform follows a transparent **5-Stage Verification Workflow**:\n\n* **Stage 1: Department A (Revenue & Civil Supplies)** — Verifies identity, income details, and civil registry records.\n* **Stage 2: Department B (Social Welfare & Inclusion)** — Cross-verifies records against the welfare entitlement database.\n* **Stage 3: Department C (Labour & Employment Welfare)** — Verifies clearance against the labour registry.\n* **Stage 4: Admin (MahaSetu State Administrator)** — Conducts a statutory administrative review of the cross-departmental clearances.\n* **Stage 5: Auditor (Independent Compliance",
+            "content": "Hello Sneha Patil! \n\nWhile you currently do not have an active application on record in MahaSetu, I would be happy to explain how our verification process works.\n\nMahaSetu operates on the **\"Submit Once\" principle**, meaning citizens submit their information and certificates only once. The system then securely coordinates verification across multiple departments so you never have to resubmit identical documents.\n\nThe platform follows a transparent **5-Stage Verification Workflow**:\n\n* **Stage 1: Department A (Revenue & Civil Supplies)** — Verifies identity, income details, and civil registry records.\n* **Stage 2: Department B (Social Welfare & Inclusion)** — Cross-verifies records against the welfare entitlement database.\n* **Stage 3: Department C (Labour & Employment Welfare)** — Verifies clearance against the labour registry.\n* **Stage 4: Admin (MahaSetu State Administrator)** — Conducts a statutory administrative review of the cross-departmental clearances.\n* **Stage 5: Auditor (Independent Compliance",
             "createdAt": "2026-09-09T05:25:22.083Z"
           },
           {
@@ -387,7 +387,7 @@
             "conversationId": "conv_kYVqBPzkOFcS4O2WTaa2jO8D5M93_1788930095887",
             "userId": "kYVqBPzkOFcS4O2WTaa2jO8D5M93",
             "role": "user",
-            "content": "AKSHITA_PRIVATE_TEST_789",
+            "content": "SNEHA_PRIVATE_TEST_789",
             "createdAt": "2026-09-09T06:18:57.096Z"
           },
           {
@@ -395,7 +395,7 @@
             "conversationId": "conv_kYVqBPzkOFcS4O2WTaa2jO8D5M93_1788930095887",
             "userId": "kYVqBPzkOFcS4O2WTaa2jO8D5M93",
             "role": "assistant",
-            "content": "Hello Akshita S S! \n\nI do not have an active application on record for your account in the MahaSetu portal. \n\nIf you recently attempted to submit an application or need guidance on how to start a new application under the **Submit Once** framework, please let me know and I will be happy to assist you!",
+            "content": "Hello Sneha Patil! \n\nI do not have an active application on record for your account in the MahaSetu portal. \n\nIf you recently attempted to submit an application or need guidance on how to start a new application under the **Submit Once** framework, please let me know and I will be happy to assist you!",
             "createdAt": "2026-09-09T06:18:57.228Z"
           },
           {
@@ -403,7 +403,7 @@
             "conversationId": "conv_kYVqBPzkOFcS4O2WTaa2jO8D5M93_1788930095887",
             "userId": "kYVqBPzkOFcS4O2WTaa2jO8D5M93",
             "role": "user",
-            "content": "AKSHITA_PRIVATE_TEST_789",
+            "content": "SNEHA_PRIVATE_TEST_789",
             "createdAt": "2026-09-09T06:58:55.626Z"
           },
           {
@@ -411,7 +411,7 @@
             "conversationId": "conv_kYVqBPzkOFcS4O2WTaa2jO8D5M93_1788930095887",
             "userId": "kYVqBPzkOFcS4O2WTaa2jO8D5M93",
             "role": "assistant",
-            "content": "Hello Akshita S S,\n\nI do not have an active application on record for your account in the MahaSetu portal matching **AKSHITA_PRIVATE_TEST_789**.\n\nIf you have questions about how to submit a new application, need details on our **5-Stage Verification Workflow**, or wish to learn more about the **Submit Once** framework, please feel free to ask!",
+            "content": "Hello Sneha Patil,\n\nI do not have an active application on record for your account in the MahaSetu portal matching **SNEHA_PRIVATE_TEST_789**.\n\nIf you have questions about how to submit a new application, need details on our **5-Stage Verification Workflow**, or wish to learn more about the **Submit Once** framework, please feel free to ask!",
             "createdAt": "2026-09-09T06:58:55.740Z"
           },
           {
@@ -427,7 +427,7 @@
             "conversationId": "conv_kYVqBPzkOFcS4O2WTaa2jO8D5M93_1788930095887",
             "userId": "kYVqBPzkOFcS4O2WTaa2jO8D5M93",
             "role": "assistant",
-            "content": "Hello Akshita S S!\n\nAs you do not currently have an active application submitted in the MahaSetu portal, here is what happens next when you are ready to get started:\n\n### Next Steps to Apply\n\n1. **Initiate an Application**\n   * Visit the main dashboard/services section of the MahaSetu portal and select the service or certificate scheme you wish to apply for.\n\n2. **Grant Citizen Consent (\"Submit Once\")**\n   * You only need to enter your personal details and upload required documents once. \n   * You will be prompted to grant **Statutory Citizen Consent**, which authorizes MahaSetu to securely share and verify your data across relevant departments without making you resubmit documents to each separate office.\n\n3. **5-Stage Verification Process**\n   Once submitted, your application automatically moves through our secure verification pipeline:\n   * **Stage 1: Revenue & Civil Supplies** — Verifies identity",
+            "content": "Hello Sneha Patil!\n\nAs you do not currently have an active application submitted in the MahaSetu portal, here is what happens next when you are ready to get started:\n\n### Next Steps to Apply\n\n1. **Initiate an Application**\n   * Visit the main dashboard/services section of the MahaSetu portal and select the service or certificate scheme you wish to apply for.\n\n2. **Grant Citizen Consent (\"Submit Once\")**\n   * You only need to enter your personal details and upload required documents once. \n   * You will be prompted to grant **Statutory Citizen Consent**, which authorizes MahaSetu to securely share and verify your data across relevant departments without making you resubmit documents to each separate office.\n\n3. **5-Stage Verification Process**\n   Once submitted, your application automatically moves through our secure verification pipeline:\n   * **Stage 1: Revenue & Civil Supplies** — Verifies identity",
             "createdAt": "2026-09-09T07:05:47.293Z"
           }
         ]
@@ -462,7 +462,7 @@
             "conversationId": "conv_pSnwS0QXOrQ0fZnKyq06FEJM3hR2_1788930101918",
             "userId": "pSnwS0QXOrQ0fZnKyq06FEJM3hR2",
             "role": "user",
-            "content": "KANIMOZHI_PRIVATE_TEST_999",
+            "content": "POOJA_PRIVATE_TEST_999",
             "createdAt": "2026-09-09T06:19:08.129Z"
           },
           {
@@ -470,7 +470,7 @@
             "conversationId": "conv_pSnwS0QXOrQ0fZnKyq06FEJM3hR2_1788930101918",
             "userId": "pSnwS0QXOrQ0fZnKyq06FEJM3hR2",
             "role": "assistant",
-            "content": "Hello Kanimozhi N,\n\nI do not have an active application on record for your account.\n\nIf you decide to apply for services through the MahaSetu platform in the future, your application will seamlessly go through our 5-stage secure verification workflow (Revenue & Civil Supplies, Social Welfare, Labour & Employment, State Administration, and Final Compliance Audit) under the **\"Submit Once\"** principle. \n\nPlease feel free to reach out if you have any questions about how MahaSetu works or if you need guidance on starting a new application!",
+            "content": "Hello Pooja Kulkarni,\n\nI do not have an active application on record for your account.\n\nIf you decide to apply for services through the MahaSetu platform in the future, your application will seamlessly go through our 5-stage secure verification workflow (Revenue & Civil Supplies, Social Welfare, Labour & Employment, State Administration, and Final Compliance Audit) under the **\"Submit Once\"** principle. \n\nPlease feel free to reach out if you have any questions about how MahaSetu works or if you need guidance on starting a new application!",
             "createdAt": "2026-09-09T06:19:08.279Z"
           },
           {
@@ -486,7 +486,7 @@
             "conversationId": "conv_pSnwS0QXOrQ0fZnKyq06FEJM3hR2_1788930101918",
             "userId": "pSnwS0QXOrQ0fZnKyq06FEJM3hR2",
             "role": "assistant",
-            "content": "Hello Kanimozhi N,\n\nI do not have an active application on record for your account.\n\nOnce you submit an application through the MahaSetu platform, you will be able to track its real-time progress right here as it moves through the **5-stage verification workflow**:\n\n1. **Stage 1:** Department A (Revenue & Civil Supplies)\n2. **Stage 2:** Department B (Social Welfare & Inclusion)\n3. **Stage 3:** Department C (Labour & Employment Welfare)\n4. **Stage 4:** State Administration Review\n5. **Stage 5:** Independent Compliance Audit & Statutory Consent\n\nIf you need any guidance on how the \"Submit Once\" process works or need assistance with starting a new application, please feel free to ask!",
+            "content": "Hello Pooja Kulkarni,\n\nI do not have an active application on record for your account.\n\nOnce you submit an application through the MahaSetu platform, you will be able to track its real-time progress right here as it moves through the **5-stage verification workflow**:\n\n1. **Stage 1:** Department A (Revenue & Civil Supplies)\n2. **Stage 2:** Department B (Social Welfare & Inclusion)\n3. **Stage 3:** Department C (Labour & Employment Welfare)\n4. **Stage 4:** State Administration Review\n5. **Stage 5:** Independent Compliance Audit & Statutory Consent\n\nIf you need any guidance on how the \"Submit Once\" process works or need assistance with starting a new application, please feel free to ask!",
             "createdAt": "2026-09-09T06:52:40.836Z"
           },
           {
@@ -502,7 +502,7 @@
             "conversationId": "conv_pSnwS0QXOrQ0fZnKyq06FEJM3hR2_1788930101918",
             "userId": "pSnwS0QXOrQ0fZnKyq06FEJM3hR2",
             "role": "assistant",
-            "content": "Hello Kanimozhi N,\n\nI do not have an active application on record for your account.\n\nOnce you submit an application through MahaSetu, you will be able to track its progress in real time as it moves through the **5-Stage Verification Workflow**:\n\n* **Stage 1:** Revenue & Civil Supplies (Identity, Income & Civil Registry)\n* **Stage 2:** Social Welfare & Inclusion (Welfare Entitlement Verification)\n* **Stage 3:** Labour & Employment Welfare (Labour Registry Clearance)\n* **Stage 4:** MahaSetu State Administrator (Statutory Review)\n* **Stage 5:** Independent Compliance Auditor (Final Compliance Certification)\n\nUnder our **\"Submit Once\"** principle, you will only need to provide your documents once, and all cross-departmental checks will be securely managed by the platform with your explicit consent.\n\nIf you need assistance with starting a new application or understanding the process, please let me know!",
+            "content": "Hello Pooja Kulkarni,\n\nI do not have an active application on record for your account.\n\nOnce you submit an application through MahaSetu, you will be able to track its progress in real time as it moves through the **5-Stage Verification Workflow**:\n\n* **Stage 1:** Revenue & Civil Supplies (Identity, Income & Civil Registry)\n* **Stage 2:** Social Welfare & Inclusion (Welfare Entitlement Verification)\n* **Stage 3:** Labour & Employment Welfare (Labour Registry Clearance)\n* **Stage 4:** MahaSetu State Administrator (Statutory Review)\n* **Stage 5:** Independent Compliance Auditor (Final Compliance Certification)\n\nUnder our **\"Submit Once\"** principle, you will only need to provide your documents once, and all cross-departmental checks will be securely managed by the platform with your explicit consent.\n\nIf you need assistance with starting a new application or understanding the process, please let me know!",
             "createdAt": "2026-09-09T06:53:11.152Z"
           },
           {
@@ -510,7 +510,7 @@
             "conversationId": "conv_pSnwS0QXOrQ0fZnKyq06FEJM3hR2_1788930101918",
             "userId": "pSnwS0QXOrQ0fZnKyq06FEJM3hR2",
             "role": "user",
-            "content": "KANIMOZHI_PRIVATE_TEST_999",
+            "content": "POOJA_PRIVATE_TEST_999",
             "createdAt": "2026-09-09T06:59:36.877Z"
           },
           {
@@ -518,7 +518,7 @@
             "conversationId": "conv_pSnwS0QXOrQ0fZnKyq06FEJM3hR2_1788930101918",
             "userId": "pSnwS0QXOrQ0fZnKyq06FEJM3hR2",
             "role": "assistant",
-            "content": "Hello Kanimozhi N,\n\nI do not have an active application on record for your account.\n\nIf you have any questions about how the MahaSetu platform works, our \"Submit Once\" principle, or how to start a new application, please feel free to ask!",
+            "content": "Hello Pooja Kulkarni,\n\nI do not have an active application on record for your account.\n\nIf you have any questions about how the MahaSetu platform works, our \"Submit Once\" principle, or how to start a new application, please feel free to ask!",
             "createdAt": "2026-09-09T06:59:37.072Z"
           },
           {
@@ -534,7 +534,7 @@
             "conversationId": "conv_pSnwS0QXOrQ0fZnKyq06FEJM3hR2_1788930101918",
             "userId": "pSnwS0QXOrQ0fZnKyq06FEJM3hR2",
             "role": "assistant",
-            "content": "Hello Kanimozhi N,\n\nIn MahaSetu, **Statutory Citizen Consent** is a fundamental feature designed to give you complete ownership and control over your personal data.\n\nHere is how consent works on the MahaSetu platform:\n\n* **Explicit Authorization:** Your personal details, certificates, and registry information are shared between government departments **only** when you explicitly grant permission. No department can access your records without your authorization.\n* **Powers the \"Submit Once\" Principle:** By providing your consent, you authorize MahaSetu to orchestrate secure cross-departmental verifications (e.g., across Revenue, Social Welfare, and Labour departments) directly. This eliminates the need for you to repeatedly submit identical documents to separate offices.\n* **Secure Consent Tokens:** When you grant approval, a secure, statutory consent token is generated. This creates a transparent, tamper-evident authorization log ensuring your data is used strictly for the specific service you requested.\n* **Real-Time Visibility:** You receive notifications and SMS updates whenever your consent is utilized to perform a verification step across the 5-stage workflow.\n\nIn summary, consent ensures that inter-departmental data exchange is safe, lawful, transparent, and completely under your control. \n\nIf you have any further questions or need help starting an application, please feel free to ask!",
+            "content": "Hello Pooja Kulkarni,\n\nIn MahaSetu, **Statutory Citizen Consent** is a fundamental feature designed to give you complete ownership and control over your personal data.\n\nHere is how consent works on the MahaSetu platform:\n\n* **Explicit Authorization:** Your personal details, certificates, and registry information are shared between government departments **only** when you explicitly grant permission. No department can access your records without your authorization.\n* **Powers the \"Submit Once\" Principle:** By providing your consent, you authorize MahaSetu to orchestrate secure cross-departmental verifications (e.g., across Revenue, Social Welfare, and Labour departments) directly. This eliminates the need for you to repeatedly submit identical documents to separate offices.\n* **Secure Consent Tokens:** When you grant approval, a secure, statutory consent token is generated. This creates a transparent, tamper-evident authorization log ensuring your data is used strictly for the specific service you requested.\n* **Real-Time Visibility:** You receive notifications and SMS updates whenever your consent is utilized to perform a verification step across the 5-stage workflow.\n\nIn summary, consent ensures that inter-departmental data exchange is safe, lawful, transparent, and completely under your control. \n\nIf you have any further questions or need help starting an application, please feel free to ask!",
             "createdAt": "2026-09-09T07:05:01.921Z"
           }
         ]
@@ -615,8 +615,67 @@
             "conversationId": "conv_cZU9AgwVlCNIPDDg4ei5rW6D6eC2_1789050228260",
             "userId": "cZU9AgwVlCNIPDDg4ei5rW6D6eC2",
             "role": "assistant",
-            "content": "Hello **vineshhh006**,\n\nHere is the current status of your submitted applications registered on the **MahaSetu** portal:\n\n---\n\n### 📋 Your Active Applications\n\n#### 1. **Application No: MS-34478**\n* **Service Name:** Employment Assistance & Skill Allowance\n* **Status:** Application Submitted (`APPLICATION_SUBMITTED`)\n* **Submitted On:** September 10, 2026\n* **Verification Progress:** 0 of 5 stages completed\n* **Next Pending Stage:** Stage 1: Department A (Revenue & Civil Supplies)\n* **Action Required by You:** No action required at this time.\n\n---\n\n#### 2. **Application No: MS-67520**\n* **Service Name:** Employment Assistance & Skill Allowance\n* **Status:** Application Submitted (`APPLICATION_SUBMITTED`)\n* **Submitted On:** September 10, 2026\n* **Verification Progress:** 0 of 5 stages completed\n* **Next Pending Stage:** Stage 1: Department A (Revenue & Civil Supplies)\n* **Action Required by You:** No action required at this time.\n\n---\n\n#### 3. **Application No: MS-64261**\n* **Service Name:** Employment Assistance & Skill Allowance\n* **Status:** Application Submitted (`APPLICATION_SUBMITTED`)\n* **Submitted On:** September 10, 2026\n* **Verification Progress:** 0 of 5 stages completed\n* **Next Pending Stage:** Stage 1: Department A (Revenue & Civil Supplies)\n* **Action Required by You:** No action required at this time.\n\n---\n\n### 🔄 What Happens Next?\n\nUnder the **MahaSetu \"Submit Once\" Principle**, you do not need to resubmit documents to different departments. Your applications will automatically progress through the following 5 verification stages:\n\n1. **Stage 1 (Current):** Department A (Revenue & Civil Supplies) — Identity & Civil Registry verification.\n2. **Stage 2:** Department B (Social Welfare & Inclusion) — Entitlement database check.\n3. **Stage 3:** Department C (Labour & Employment Welfare) — Labour registry clearance.\n4. **Stage 4:** Admin — Administrative compliance review.\n5. **Stage 5:** Auditor — Independent audit &",
+            "content": "Hello **Priya Sharma**,\n\nHere is the current status of your submitted applications registered on the **MahaSetu** portal:\n\n---\n\n### 📋 Your Active Applications\n\n#### 1. **Application No: MS-34478**\n* **Service Name:** Employment Assistance & Skill Allowance\n* **Status:** Application Submitted (`APPLICATION_SUBMITTED`)\n* **Submitted On:** September 10, 2026\n* **Verification Progress:** 0 of 5 stages completed\n* **Next Pending Stage:** Stage 1: Department A (Revenue & Civil Supplies)\n* **Action Required by You:** No action required at this time.\n\n---\n\n#### 2. **Application No: MS-67520**\n* **Service Name:** Employment Assistance & Skill Allowance\n* **Status:** Application Submitted (`APPLICATION_SUBMITTED`)\n* **Submitted On:** September 10, 2026\n* **Verification Progress:** 0 of 5 stages completed\n* **Next Pending Stage:** Stage 1: Department A (Revenue & Civil Supplies)\n* **Action Required by You:** No action required at this time.\n\n---\n\n#### 3. **Application No: MS-64261**\n* **Service Name:** Employment Assistance & Skill Allowance\n* **Status:** Application Submitted (`APPLICATION_SUBMITTED`)\n* **Submitted On:** September 10, 2026\n* **Verification Progress:** 0 of 5 stages completed\n* **Next Pending Stage:** Stage 1: Department A (Revenue & Civil Supplies)\n* **Action Required by You:** No action required at this time.\n\n---\n\n### 🔄 What Happens Next?\n\nUnder the **MahaSetu \"Submit Once\" Principle**, you do not need to resubmit documents to different departments. Your applications will automatically progress through the following 5 verification stages:\n\n1. **Stage 1 (Current):** Department A (Revenue & Civil Supplies) — Identity & Civil Registry verification.\n2. **Stage 2:** Department B (Social Welfare & Inclusion) — Entitlement database check.\n3. **Stage 3:** Department C (Labour & Employment Welfare) — Labour registry clearance.\n4. **Stage 4:** Admin — Administrative compliance review.\n5. **Stage 5:** Auditor — Independent audit &",
             "createdAt": "2026-09-10T14:23:57.228Z"
+          }
+        ]
+      }
+    },
+    "lCDtjocw94VZj6CznvV7akFQmJG3": {
+      "conv_lCDtjocw94VZj6CznvV7akFQmJG3_1789810054059": {
+        "id": "conv_lCDtjocw94VZj6CznvV7akFQmJG3_1789810054059",
+        "userId": "lCDtjocw94VZj6CznvV7akFQmJG3",
+        "title": "What is Submit Once?...",
+        "createdAt": "2026-09-19T09:27:41.310Z",
+        "updatedAt": "2026-09-19T11:56:39.649Z",
+        "messages": [
+          {
+            "id": "msg_1789810061310_4dxyz",
+            "conversationId": "conv_lCDtjocw94VZj6CznvV7akFQmJG3_1789810054059",
+            "userId": "lCDtjocw94VZj6CznvV7akFQmJG3",
+            "role": "user",
+            "content": "What is Submit Once?",
+            "createdAt": "2026-09-19T09:27:41.310Z"
+          },
+          {
+            "id": "msg_1789810061707_wtksb",
+            "conversationId": "conv_lCDtjocw94VZj6CznvV7akFQmJG3_1789810054059",
+            "userId": "lCDtjocw94VZj6CznvV7akFQmJG3",
+            "role": "assistant",
+            "content": "Hello Priya Sharma,\n\nThe **\"Submit Once\" Principle** is a core feature of the MahaSetu platform designed to make accessing government services simple, seamless, and hassle-free for citizens.\n\nHere is how it works:\n\n* **Single Submission:** You provide your personal details, documents, and certificates only once on the platform.\n* **Cross-Department Interoperability:** Once submitted, MahaSetu securely orchestrates verification across all relevant government departments (such as Revenue, Social Welfare, and Labour) in real time. \n* **No Redundant Uploads:** You never need to resubmit identical documents or re-enter the same information for different departments or services.\n* **Consent-Driven:** Your data is shared between departments securely and strictly with your explicit authorization.\n\n*Please note: According to our records, you currently do not have an active application submitted on MahaSetu. Whenever you apply for a service in the future, the \"Submit Once\" principle will automatically apply to streamline your process.*\n\nIf you have any further questions about how MahaSetu works, feel free to ask!",
+            "createdAt": "2026-09-19T09:27:41.707Z"
+          },
+          {
+            "id": "msg_1789810124517_uwanb",
+            "conversationId": "conv_lCDtjocw94VZj6CznvV7akFQmJG3_1789810054059",
+            "userId": "lCDtjocw94VZj6CznvV7akFQmJG3",
+            "role": "user",
+            "content": "What services are available on MahaSetu?",
+            "createdAt": "2026-09-19T09:28:44.517Z"
+          },
+          {
+            "id": "msg_1789810124876_1xntv",
+            "conversationId": "conv_lCDtjocw94VZj6CznvV7akFQmJG3_1789810054059",
+            "userId": "lCDtjocw94VZj6CznvV7akFQmJG3",
+            "role": "assistant",
+            "content": "Hello Priya Sharma,\n\nMahaSetu is Maharashtra's official state government interoperability platform designed to act as a unified, single-window bridge across various state departments. \n\nThrough MahaSetu's **\"Submit Once\"** framework, you can access integrated services and welfare schemes spanning multiple departments without needing to submit repetitive documents.\n\nHere are the primary service domains available on the platform:\n\n* **Revenue & Civil Supplies Services:**\n  * Identity, income, and civil registry verifications\n  * Civil supplies and ration entitlements\n\n* **Social Welfare & Inclusion Services:**\n  * Social security benefits and welfare entitlement verification\n  * Inclusion programs and statutory financial assistance schemes\n\n* **Labour & Employment Welfare Services:**\n  * Worker registrations and labour registry clearances\n  * Unorganized worker welfare and employment benefit schemes\n\n* **Integrated Multi-Department Schemes:**\n  * State government initiatives requiring statutory consents and multi-department approvals (processed seamlessly through our 5-stage verification workflow).\n\n---\n\n*Note: According to our system records, you currently do not have an active application on file. Once you submit an application through the platform, you can track its multi-stage verification status here at any time.*\n\nIf you need assistance with anything else, please let me know!",
+            "createdAt": "2026-09-19T09:28:44.876Z"
+          },
+          {
+            "id": "msg_1789818999204_n3mtg",
+            "conversationId": "conv_lCDtjocw94VZj6CznvV7akFQmJG3_1789810054059",
+            "userId": "lCDtjocw94VZj6CznvV7akFQmJG3",
+            "role": "user",
+            "content": "Explain verification",
+            "createdAt": "2026-09-19T11:56:39.204Z"
+          },
+          {
+            "id": "msg_1789818999649_zklq7",
+            "conversationId": "conv_lCDtjocw94VZj6CznvV7akFQmJG3_1789810054059",
+            "userId": "lCDtjocw94VZj6CznvV7akFQmJG3",
+            "role": "assistant",
+            "content": "Hello Priya Sharma,\n\nThe verification process on MahaSetu is built around our **5-Stage Verification Workflow**. Instead of requiring you to visit multiple government offices, MahaSetu automatically coordinates your application across different departments and authorities under your explicit consent.\n\nHere is how an application moves through the 5 stages:\n\n* **Stage 1: Revenue & Civil Supplies Department**\n  Verifies your identity, income certificates, and civil registry details.\n\n* **Stage 2: Social Welfare & Inclusion Department**\n  Verifies your eligibility against welfare entitlement databases and state assistance registries.\n\n* **Stage 3: Labour & Employment Welfare Department**\n  Checks labour registry records and employment welfare clearances, if applicable.\n\n* **Stage 4: State Administrator Review**\n  The MahaSetu State Administrator conducts a statutory administrative review to ensure all departmental clearances are complete and accurate.\n\n* **Stage 5: Independent Compliance Audit**\n  An independent compliance auditor conducts a final review to issue final statutory consent and compliance certification (achieving full 5/5 verification).\n\n---\n\n*Note: According to our records, you currently do not have an active application on file. Once you apply for a service, you will be able to track your application live through these 5 stages and receive real-time updates via SMS and in-app notifications.*\n\nPlease let me know if you have any questions about this process!",
+            "createdAt": "2026-09-19T11:56:39.649Z"
           }
         ]
       }

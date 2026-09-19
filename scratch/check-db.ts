@@ -8,7 +8,7 @@ import { DEMO_PASSWORD } from '../constants/demoData';
 
 async function check() {
   console.log('Authenticating...');
-  await signInWithEmailAndPassword(auth, 'tammu.admin@mahasetu.gov.in', DEMO_PASSWORD);
+  await signInWithEmailAndPassword(auth, 'admin.onboarding@mahasetu.gov.in', DEMO_PASSWORD);
   console.log('Authenticated.');
 
   const cols = [

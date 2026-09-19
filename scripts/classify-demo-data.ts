@@ -22,16 +22,16 @@ async function classifyDemoData() {
   console.log('====================================================\n');
 
   console.log('[1] Authenticating as Admin...');
-  await signInWithEmailAndPassword(auth, 'tammu.admin@mahasetu.gov.in', DEMO_PASSWORD);
+  await signInWithEmailAndPassword(auth, 'admin.onboarding@mahasetu.gov.in', DEMO_PASSWORD);
   console.log('    ✓ Authenticated as Administrator.\n');
 
   // 1. Classify Demo Personas in `users`
   console.log('[2] Classifying seeded demo user personas in users collection...');
   const demoPersonaEmails = new Set([
-    'anusha@mahasetu.gov.in',
-    'muthumayil@mahasetu.gov.in',
-    'akshita@mahasetu.gov.in',
-    'kanimozhi@mahasetu.gov.in',
+    'citizen.priya@mahasetu.gov.in',
+    'citizen.rahul@mahasetu.gov.in',
+    'citizen.sneha@mahasetu.gov.in',
+    'citizen.pooja@mahasetu.gov.in',
     'applicant.test@mahasetu.gov.in',
   ]);
 
@@ -68,7 +68,7 @@ async function classifyDemoData() {
     const data = appDoc.data();
     const citizenUid = data.citizenId || data.citizenUid;
 
-    if (demoCitizenUids.has(citizenUid) || data.citizenName === 'Anusha G.' || data.citizenName === 'Muthumayil M.' || data.citizenName === 'Akshita S S') {
+    if (demoCitizenUids.has(citizenUid) || data.citizenName === 'Priya Sharma' || data.citizenName === 'Rahul Verma' || data.citizenName === 'Sneha Patil' || data.citizenName === 'Pooja Kulkarni') {
       demoAppIds.add(appDoc.id);
       await updateDoc(doc(db, 'applications', appDoc.id), {
         isDemo: true,

@@ -3,23 +3,23 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 async function testRules() {
-  const cred = await signInWithEmailAndPassword(auth, 'tammu.admin@mahasetu.gov.in', 'MahaSetu@2026!');
-  console.log('Signed in as Tammu, UID:', cred.user.uid);
+  const cred = await signInWithEmailAndPassword(auth, 'admin.onboarding@mahasetu.gov.in', 'MahaSetu@2026!');
+  console.log('Signed in as Anil, UID:', cred.user.uid);
 
-  // Try creating Tammu's profile
+  // Try creating Anil's profile
   try {
     await setDoc(doc(db, 'users', cred.user.uid), {
       uid: cred.user.uid,
-      email: 'tammu.admin@mahasetu.gov.in',
-      name: 'Tammu Vedesh Kumar',
+      email: 'admin.onboarding@mahasetu.gov.in',
+      name: 'Anil Shinde',
       role: 'ADMIN',
       status: 'APPROVED',
       isActive: true,
       createdAt: new Date().toISOString(),
     });
-    console.log('Created Tammu profile successfully!');
+    console.log('Created Anil profile successfully!');
   } catch (e: any) {
-    console.log('Failed to create Tammu profile:', e.code, e.message);
+    console.log('Failed to create Anil profile:', e.code, e.message);
   }
 
   // Also try reading departments

@@ -1,6 +1,98 @@
-// demoData.ts — Government Service Catalog
-// NOTE: DEMO_USERS, DEMO_PASSWORD, and DemoUser have been removed.
-// This file is retained for the GOVERNMENT_SERVICES production service catalog.
+// demoData.ts — Official Demo Accounts & Government Service Catalog
+
+export interface DemoUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'citizen' | 'department_officer' | 'admin' | 'auditor';
+  departmentId?: 'DEPT_A' | 'DEPT_B' | 'DEPT_C' | null;
+  status: 'APPROVED' | 'PENDING' | 'REJECTED';
+}
+
+export const DEMO_PASSWORD = 'MahaSetu@2026!';
+
+export const DEMO_USERS: DemoUser[] = [
+  {
+    id: 'demo-priya',
+    name: 'Priya Sharma',
+    email: 'citizen.priya@mahasetu.gov.in',
+    role: 'citizen',
+    departmentId: null,
+    status: 'APPROVED',
+  },
+  {
+    id: 'demo-rahul',
+    name: 'Rahul Verma',
+    email: 'citizen.rahul@mahasetu.gov.in',
+    role: 'citizen',
+    departmentId: null,
+    status: 'APPROVED',
+  },
+  {
+    id: 'demo-sneha',
+    name: 'Sneha Patil',
+    email: 'citizen.sneha@mahasetu.gov.in',
+    role: 'citizen',
+    departmentId: null,
+    status: 'APPROVED',
+  },
+  {
+    id: 'demo-pooja',
+    name: 'Pooja Kulkarni',
+    email: 'citizen.pooja@mahasetu.gov.in',
+    role: 'citizen',
+    departmentId: null,
+    status: 'APPROVED',
+  },
+  {
+    id: 'demo-ramesh',
+    name: 'Ramesh Kumar',
+    email: 'officer.dept_a@mahasetu.gov.in',
+    role: 'department_officer',
+    departmentId: 'DEPT_A',
+    status: 'APPROVED',
+  },
+  {
+    id: 'demo-suresh',
+    name: 'Suresh Joshi',
+    email: 'officer.dept_b@mahasetu.gov.in',
+    role: 'department_officer',
+    departmentId: 'DEPT_B',
+    status: 'APPROVED',
+  },
+  {
+    id: 'demo-mahesh',
+    name: 'Mahesh Deshmukh',
+    email: 'officer.dept_c@mahasetu.gov.in',
+    role: 'department_officer',
+    departmentId: 'DEPT_C',
+    status: 'APPROVED',
+  },
+  {
+    id: 'demo-anil',
+    name: 'Anil Shinde',
+    email: 'admin.onboarding@mahasetu.gov.in',
+    role: 'admin',
+    departmentId: null,
+    status: 'APPROVED',
+  },
+  {
+    id: 'demo-vijay',
+    name: 'Vijay Patil',
+    email: 'admin.system@mahasetu.gov.in',
+    role: 'admin',
+    departmentId: null,
+    status: 'APPROVED',
+  },
+  {
+    id: 'demo-neha',
+    name: 'Neha Deshpande',
+    email: 'auditor.compliance@mahasetu.gov.in',
+    role: 'auditor',
+    departmentId: null,
+    status: 'APPROVED',
+  },
+];
 
 export interface GovernmentService {
   id: string;

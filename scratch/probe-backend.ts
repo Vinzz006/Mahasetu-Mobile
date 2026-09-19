@@ -33,7 +33,7 @@ async function probe() {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'anusha@mahasetu.gov.in' })
+        body: JSON.stringify({ email: 'citizen.priya@mahasetu.gov.in' })
       });
       const text = await res.text();
       console.log(`POST ${url} -> ${res.status}: ${text.substring(0, 100)}`);

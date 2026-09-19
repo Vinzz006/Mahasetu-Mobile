@@ -32,22 +32,24 @@ The mobile application is a first-class client of the **MahaSetu Platform**, int
 
 ---
 
-## 👥 Built-in Official Demo Accounts
+## 👥 Built-in Official Demo Accounts & Credentials
 
-The login screen includes an **Official Demo Accounts Switcher** allowing instant testing and demonstration across all roles:
+Sign in directly on the mobile app or web portal using the pre-configured demo credentials below:
 
-| Role | Name | Identifier | Purpose / Scope |
-| :--- | :--- | :--- | :--- |
-| **Citizen** | Anusha G. | `anusha@mahasetu.gov.in` | Self-service, Submit Once, 5-party tracking, Consent management |
-| **Citizen** | Muthumayil M. | `muthumayil@mahasetu.gov.in` | Higher education benefit applicant |
-| **Citizen** | Akshita S S | `akshita@mahasetu.gov.in` | Livelihood assistance applicant |
-| **Citizen** | Kanimozhi N | `kanimozhi@mahasetu.gov.in` | Social welfare applicant |
-| **Dept Officer** | Vinesh S | `vinesh.dept_a@mahasetu.gov.in` | **DEPT_A** — Revenue & Civil Supplies certification |
-| **Dept Officer** | Sai Sharavan G | `sai.dept_b@mahasetu.gov.in` | **DEPT_B** — Social Welfare & Inclusion certification |
-| **Dept Officer** | Omesh Kaarthik S U | `omesh.dept_c@mahasetu.gov.in` | **DEPT_C** — Labour & Employment Welfare certification |
-| **Admin** | Tammu Vedesh Kumar | `tammu.admin@mahasetu.gov.in` | User onboarding approval, Citizen identity queue, 5/5 matrix |
-| **Admin** | Shanmugam K | `shanmugam.admin@mahasetu.gov.in` | System health, Twilio monitoring, Canonical exchanges |
-| **Auditor** | Tanushri S | `tanushri.auditor@mahasetu.gov.in` | Independent compliance oversight, 5th verification gate |
+**Demo Password for all accounts**: `MahaSetu@2026!`
+
+| Role | Demo Name | Email Identifier | Password | Purpose / Scope |
+| :--- | :--- | :--- | :--- | :--- |
+| **Citizen** | Priya Sharma | `citizen.priya@mahasetu.gov.in` | `MahaSetu@2026!` | Self-service, Submit Once, 5-party tracking, Consent management |
+| **Citizen** | Rahul Verma | `citizen.rahul@mahasetu.gov.in` | `MahaSetu@2026!` | Higher education benefit applicant |
+| **Citizen** | Sneha Patil | `citizen.sneha@mahasetu.gov.in` | `MahaSetu@2026!` | Livelihood assistance applicant |
+| **Citizen** | Pooja Kulkarni | `citizen.pooja@mahasetu.gov.in` | `MahaSetu@2026!` | Social welfare applicant |
+| **Dept Officer** | Ramesh Kumar | `officer.dept_a@mahasetu.gov.in` | `MahaSetu@2026!` | **DEPT_A** — Revenue & Civil Supplies certification |
+| **Dept Officer** | Suresh Joshi | `officer.dept_b@mahasetu.gov.in` | `MahaSetu@2026!` | **DEPT_B** — Social Welfare & Inclusion certification |
+| **Dept Officer** | Mahesh Deshmukh | `officer.dept_c@mahasetu.gov.in` | `MahaSetu@2026!` | **DEPT_C** — Labour & Employment Welfare certification |
+| **Admin** | Anil Shinde | `admin.onboarding@mahasetu.gov.in` | `MahaSetu@2026!` | User onboarding approval, Citizen identity queue, 5/5 matrix |
+| **Admin** | Vijay Patil | `admin.system@mahasetu.gov.in` | `MahaSetu@2026!` | System health, Twilio monitoring, Canonical exchanges |
+| **Auditor** | Neha Deshpande | `auditor.compliance@mahasetu.gov.in` | `MahaSetu@2026!` | Independent compliance oversight, 5th verification gate |
 
 ---
 

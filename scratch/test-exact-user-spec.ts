@@ -8,10 +8,10 @@ import { DEMO_PASSWORD } from '../constants/demoData';
 const BASE_URL = 'http://127.0.0.1:8000';
 
 const CITIZENS = [
-  { name: 'Anusha G.', email: 'anusha@mahasetu.gov.in', prompt: 'ANUSHA_PRIVATE_TEST_123' },
-  { name: 'Muthumayil M.', email: 'muthumayil@mahasetu.gov.in', prompt: 'MUTHUMAYIL_PRIVATE_TEST_456' },
-  { name: 'Akshita S S', email: 'akshita@mahasetu.gov.in', prompt: 'AKSHITA_PRIVATE_TEST_789' },
-  { name: 'Kanimozhi N', email: 'kanimozhi@mahasetu.gov.in', prompt: 'KANIMOZHI_PRIVATE_TEST_999' },
+  { name: 'Priya Sharma', email: 'citizen.priya@mahasetu.gov.in', prompt: 'PRIYA_PRIVATE_TEST_123' },
+  { name: 'Rahul Verma', email: 'citizen.rahul@mahasetu.gov.in', prompt: 'RAHUL_PRIVATE_TEST_456' },
+  { name: 'Sneha Patil', email: 'citizen.sneha@mahasetu.gov.in', prompt: 'SNEHA_PRIVATE_TEST_789' },
+  { name: 'Pooja Kulkarni', email: 'citizen.pooja@mahasetu.gov.in', prompt: 'POOJA_PRIVATE_TEST_999' },
 ];
 
 async function loginCitizen(email: string) {
@@ -71,70 +71,70 @@ async function runExactTests() {
   }
 
   // ================================================================
-  // SECTION 22: TEST THE ACTUAL BUG (Anusha -> Muthumayil -> Anusha)
+  // SECTION 22: TEST THE ACTUAL BUG (Priya -> Rahul -> Priya)
   // ================================================================
   console.log('--- SECTION 22: THE ACTUAL BUG REPRODUCTION TEST ---');
 
-  // STEP 1: Login as Anusha
-  console.log('Step 1: Logging in as Anusha G....');
-  const anushaLogin1 = await loginCitizen('anusha@mahasetu.gov.in');
-  const uidA = anushaLogin1.uid;
+  // STEP 1: Login as Priya
+  console.log('Step 1: Logging in as Priya Sharma....');
+  const priyaLogin1 = await loginCitizen('citizen.priya@mahasetu.gov.in');
+  const uidA = priyaLogin1.uid;
   assertCheck(auth.currentUser?.uid === uidA, `Firebase auth.currentUser.uid is UID_A (${uidA})`);
 
-  console.log('Sending: ANUSHA_PRIVATE_TEST_123');
-  const anushaSend = await sendChatMessage(anushaLogin1.token, 'ANUSHA_PRIVATE_TEST_123');
-  assertCheck(anushaSend.status === 200, 'Anusha message successfully sent (200)');
-  const anushaConvId = anushaSend.data.conversationId;
-  assertCheck(!!anushaConvId, `Anusha conversation ID obtained: ${anushaConvId}`);
+  console.log('Sending: PRIYA_PRIVATE_TEST_123');
+  const priyaSend = await sendChatMessage(priyaLogin1.token, 'PRIYA_PRIVATE_TEST_123');
+  assertCheck(priyaSend.status === 200, 'Priya message successfully sent (200)');
+  const priyaConvId = priyaSend.data.conversationId;
+  assertCheck(!!priyaConvId, `Priya conversation ID obtained: ${priyaConvId}`);
 
   // STEP 2: Logout
   console.log('Step 2: Logging out...');
   await logoutCitizen();
   assertCheck(auth.currentUser === null, 'Firebase auth.currentUser == null');
 
-  // STEP 3: Login as Muthumayil
-  console.log('Step 3: Logging in as Muthumayil M....');
-  const muthuLogin1 = await loginCitizen('muthumayil@mahasetu.gov.in');
-  const uidB = muthuLogin1.uid;
+  // STEP 3: Login as Rahul
+  console.log('Step 3: Logging in as Rahul Verma....');
+  const rahulLogin1 = await loginCitizen('citizen.rahul@mahasetu.gov.in');
+  const uidB = rahulLogin1.uid;
   assertCheck(auth.currentUser?.uid === uidB, `Firebase auth.currentUser.uid is UID_B (${uidB})`);
   assertCheck(uidA !== uidB, `UID_A (${uidA}) !== UID_B (${uidB})`);
 
-  // Open AI assistant: Muthumayil must NOT see Anusha's message
-  console.log('Fetching Muthumayil chat history...');
-  const muthuHist1 = await getChatHistory(muthuLogin1.token);
-  assertCheck(muthuHist1.status === 200, 'Muthumayil history query succeeded');
-  const muthuMsgs1 = muthuHist1.data.messages || [];
-  const hasAnushaSecret = muthuMsgs1.some((m: any) => m.content.includes('ANUSHA_PRIVATE_TEST_123'));
-  assertCheck(!hasAnushaSecret, 'CRITICAL: Muthumayil MUST NOT see "ANUSHA_PRIVATE_TEST_123"');
+  // Open AI assistant: Rahul must NOT see Priya's message
+  console.log('Fetching Rahul chat history...');
+  const rahulHist1 = await getChatHistory(rahulLogin1.token);
+  assertCheck(rahulHist1.status === 200, 'Rahul history query succeeded');
+  const rahulMsgs1 = rahulHist1.data.messages || [];
+  const hasPriyaSecret = rahulMsgs1.some((m: any) => m.content.includes('PRIYA_PRIVATE_TEST_123'));
+  assertCheck(!hasPriyaSecret, 'CRITICAL: Rahul MUST NOT see "PRIYA_PRIVATE_TEST_123"');
 
-  // STEP 4: Muthumayil sends "MUTHUMAYIL_PRIVATE_TEST_456"
-  console.log('Step 4: Muthumayil sends "MUTHUMAYIL_PRIVATE_TEST_456"...');
-  const muthuSend = await sendChatMessage(muthuLogin1.token, 'MUTHUMAYIL_PRIVATE_TEST_456');
-  assertCheck(muthuSend.status === 200, 'Muthumayil message successfully sent (200)');
-  const muthuConvId = muthuSend.data.conversationId;
-  assertCheck(muthuConvId !== anushaConvId, 'Muthumayil conversationId !== Anusha conversationId');
+  // STEP 4: Rahul sends "RAHUL_PRIVATE_TEST_456"
+  console.log('Step 4: Rahul sends "RAHUL_PRIVATE_TEST_456"...');
+  const rahulSend = await sendChatMessage(rahulLogin1.token, 'RAHUL_PRIVATE_TEST_456');
+  assertCheck(rahulSend.status === 200, 'Rahul message successfully sent (200)');
+  const rahulConvId = rahulSend.data.conversationId;
+  assertCheck(rahulConvId !== priyaConvId, 'Rahul conversationId !== Priya conversationId');
 
   // STEP 5: Logout
-  console.log('Step 5: Logging out Muthumayil...');
+  console.log('Step 5: Logging out Rahul...');
   await logoutCitizen();
   assertCheck(auth.currentUser === null, 'Firebase auth.currentUser == null after logout');
 
-  // STEP 6: Login Anusha again
-  console.log('Step 6: Logging in as Anusha G. again...');
-  const anushaLogin2 = await loginCitizen('anusha@mahasetu.gov.in');
-  assertCheck(auth.currentUser?.uid === uidA, `Anusha UID re-verified as UID_A (${uidA})`);
+  // STEP 6: Login Priya again
+  console.log('Step 6: Logging in as Priya Sharma again...');
+  const priyaLogin2 = await loginCitizen('citizen.priya@mahasetu.gov.in');
+  assertCheck(auth.currentUser?.uid === uidA, `Priya UID re-verified as UID_A (${uidA})`);
 
-  const anushaHist2 = await getChatHistory(anushaLogin2.token, anushaConvId);
-  assertCheck(anushaHist2.status === 200, 'Anusha history re-fetched successfully');
-  const anushaMsgs2 = anushaHist2.data.messages || [];
+  const priyaHist2 = await getChatHistory(priyaLogin2.token, priyaConvId);
+  assertCheck(priyaHist2.status === 200, 'Priya history re-fetched successfully');
+  const priyaMsgs2 = priyaHist2.data.messages || [];
 
-  const anushaHasHerMsg = anushaMsgs2.some((m: any) => m.content.includes('ANUSHA_PRIVATE_TEST_123'));
-  assertCheck(anushaHasHerMsg, 'Anusha MUST see "ANUSHA_PRIVATE_TEST_123"');
+  const priyaHasHerMsg = priyaMsgs2.some((m: any) => m.content.includes('PRIYA_PRIVATE_TEST_123'));
+  assertCheck(priyaHasHerMsg, 'Priya MUST see "PRIYA_PRIVATE_TEST_123"');
 
-  const anushaHasMuthuMsg = anushaMsgs2.some((m: any) => m.content.includes('MUTHUMAYIL_PRIVATE_TEST_456'));
-  assertCheck(!anushaHasMuthuMsg, 'Anusha MUST NOT see "MUTHUMAYIL_PRIVATE_TEST_456"');
+  const priyaHasRahulMsg = priyaMsgs2.some((m: any) => m.content.includes('RAHUL_PRIVATE_TEST_456'));
+  assertCheck(!priyaHasRahulMsg, 'Priya MUST NOT see "RAHUL_PRIVATE_TEST_456"');
 
-  console.log('>>> SECTION 22 PASSED: ZERO LEAKAGE BETWEEN ANUSHA AND MUTHUMAYIL <<<\n');
+  console.log('>>> SECTION 22 PASSED: ZERO LEAKAGE BETWEEN PRIYA AND RAHUL <<<\n');
 
   // ================================================================
   // SECTION 23: FOUR CITIZEN TEST
@@ -184,32 +184,32 @@ async function runExactTests() {
   // ================================================================
   console.log('--- SECTION 24: ADVERSARIAL BOUNDARY SECURITY TESTS ---');
 
-  // Muthumayil attempts to access Anusha's conversation ID
-  const muthuAuthAdversary = await loginCitizen('muthumayil@mahasetu.gov.in');
+  // Rahul attempts to access Priya's conversation ID
+  const rahulAuthAdversary = await loginCitizen('citizen.rahul@mahasetu.gov.in');
 
-  console.log(`Adversarial Test 1: Muthumayil queries GET /api/v1/ai/history?conversationId=${anushaConvId}...`);
-  const adversaryGet = await getChatHistory(muthuAuthAdversary.token, anushaConvId);
+  console.log(`Adversarial Test 1: Rahul queries GET /api/v1/ai/history?conversationId=${priyaConvId}...`);
+  const adversaryGet = await getChatHistory(rahulAuthAdversary.token, priyaConvId);
   assertCheck(
     adversaryGet.status === 403,
     `Cross-user GET history correctly returns HTTP 403 Forbidden (got: ${adversaryGet.status})`
   );
 
-  console.log(`Adversarial Test 2: Muthumayil sends POST /api/v1/ai/chat with conversationId=${anushaConvId}...`);
-  const adversaryPost = await sendChatMessage(muthuAuthAdversary.token, 'Attacking Anusha conversation', anushaConvId);
+  console.log(`Adversarial Test 2: Rahul sends POST /api/v1/ai/chat with conversationId=${priyaConvId}...`);
+  const adversaryPost = await sendChatMessage(rahulAuthAdversary.token, 'Attacking Priya conversation', priyaConvId);
   assertCheck(
     adversaryPost.status === 403,
     `Cross-user POST chat correctly returns HTTP 403 Forbidden (got: ${adversaryPost.status})`
   );
 
-  console.log('Adversarial Test 3: Muthumayil attempts to alter userId in request body to Anusha UID...');
-  const adversarySpoof = await sendChatMessage(muthuAuthAdversary.token, 'Spoofing userId', undefined, {
+  console.log('Adversarial Test 3: Rahul attempts to alter userId in request body to Priya UID...');
+  const adversarySpoof = await sendChatMessage(rahulAuthAdversary.token, 'Spoofing userId', undefined, {
     userId: uidA,
   });
   assertCheck(adversarySpoof.status === 200, 'Request processed without crash');
-  // Confirm conversation is assigned to Muthumayil, NOT Anusha!
+  // Confirm conversation is assigned to Rahul, NOT Priya!
   assertCheck(
     adversarySpoof.data.conversationId.includes(uidB),
-    `Backend IGNORED spoofed client userId and bound conversation to Muthumayil UID (${uidB})`
+    `Backend IGNORED spoofed client userId and bound conversation to Rahul UID (${uidB})`
   );
 
   await logoutCitizen();

@@ -4,10 +4,10 @@ import { doc, getDoc } from 'firebase/firestore';
 
 async function check() {
   const emails = [
-    'anusha@mahasetu.gov.in',
-    'muthumayil@mahasetu.gov.in',
-    'vinesh@mahasetu.gov.in',
-    'vinesh.dept_a@mahasetu.gov.in'
+    'citizen.priya@mahasetu.gov.in',
+    'citizen.rahul@mahasetu.gov.in',
+    'officer.dept_a@mahasetu.gov.in',
+    'admin.onboarding@mahasetu.gov.in'
   ];
   for (const email of emails) {
     try {

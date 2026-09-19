@@ -6,9 +6,9 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { DEMO_PASSWORD } from '../constants/demoData';
 
 async function run() {
-  console.log('Signing in as Anusha...');
-  const userA = await signInWithEmailAndPassword(auth, 'anusha@mahasetu.gov.in', DEMO_PASSWORD);
-  console.log('Anusha UID:', userA.user.uid);
+  console.log('Signing in as Priya...');
+  const userA = await signInWithEmailAndPassword(auth, 'citizen.priya@mahasetu.gov.in', DEMO_PASSWORD);
+  console.log('Priya UID:', userA.user.uid);
 
   const appsRef = collection(db, 'applications');
   
@@ -16,7 +16,7 @@ async function run() {
   try {
     const q1 = query(appsRef, where('citizenUid', '==', userA.user.uid));
     const s1 = await getDocs(q1);
-    console.log('Query where citizenUid == Anusha UID returned:', s1.size, 'docs');
+    console.log('Query where citizenUid == Priya UID returned:', s1.size, 'docs');
   } catch (e: any) {
     console.error('Query where citizenUid failed:', e.message);
   }
@@ -25,7 +25,7 @@ async function run() {
   try {
     const q2 = query(appsRef, where('citizenId', '==', userA.user.uid));
     const s2 = await getDocs(q2);
-    console.log('Query where citizenId == Anusha UID returned:', s2.size, 'docs');
+    console.log('Query where citizenId == Priya UID returned:', s2.size, 'docs');
   } catch (e: any) {
     console.error('Query where citizenId failed:', e.message);
   }
@@ -44,7 +44,7 @@ async function run() {
   try {
     const qc1 = query(cRef, where('citizenUid', '==', userA.user.uid));
     const sc1 = await getDocs(qc1);
-    console.log('Query where consents citizenUid == Anusha UID returned:', sc1.size, 'docs');
+    console.log('Query where consents citizenUid == Priya UID returned:', sc1.size, 'docs');
   } catch (e: any) {
     console.error('Query where consents citizenUid failed:', e.message);
   }

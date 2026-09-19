@@ -17,6 +17,7 @@ import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../store/AuthContext';
 import { authService } from '../../services/authService';
+import { DEMO_USERS, DEMO_PASSWORD } from '../../constants/demoData';
 
 export default function LoginScreen() {
   const { signInWithEmail, signUpWithEmail, sendPasswordReset } = useAuth();
@@ -119,6 +120,21 @@ export default function LoginScreen() {
       Alert.alert('Reset Error', friendlyMessage);
     } finally {
       setSendingReset(false);
+    }
+  };
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'citizen':
+        return '#0284C7';
+      case 'department_officer':
+        return '#7C3AED';
+      case 'admin':
+        return '#D97706';
+      case 'auditor':
+        return '#0D9488';
+      default:
+        return Colors.primary;
     }
   };
 
@@ -329,6 +345,47 @@ export default function LoginScreen() {
               </Text>
             </Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Quick Demo Switcher Section */}
+        <View style={styles.demoSection}>
+          <View style={styles.demoSectionHeader}>
+            <Ionicons name="flash" size={16} color="#F59E0B" />
+            <Text style={styles.demoSectionTitle}>Official Demo Personas (1-Tap Auto-fill)</Text>
+          </View>
+          <Text style={styles.demoSectionDesc}>
+            Tap any persona to autofill demo credentials and test role-based access:
+          </Text>
+          <View style={styles.demoGrid}>
+            {DEMO_USERS.map((u) => (
+              <TouchableOpacity
+                key={u.id}
+                style={styles.demoCard}
+                onPress={() => {
+                  setEmail(u.email);
+                  setPassword(DEMO_PASSWORD);
+                  setAuthMode('signin');
+                }}
+                accessibilityLabel={`Fill credentials for ${u.name}`}
+              >
+                <View style={styles.demoCardHeader}>
+                  <Text style={styles.demoCardName} numberOfLines={1}>{u.name}</Text>
+                  <View style={[styles.roleBadge, { backgroundColor: getRoleBadgeColor(u.role) }]}>
+                    <Text style={styles.roleBadgeText}>
+                      {u.role === 'citizen'
+                        ? 'Citizen'
+                        : u.role === 'department_officer'
+                        ? (u.departmentId ? u.departmentId.replace('DEPT_', 'Dept ') : 'Officer')
+                        : u.role === 'admin'
+                        ? 'Admin'
+                        : 'Auditor'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.demoCardEmail} numberOfLines={1}>{u.email}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Forgot Password Modal */}
@@ -651,5 +708,73 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontSize: Typography.fontSize.xs,
     fontWeight: '700',
+  },
+  demoSection: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  demoSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: 4,
+  },
+  demoSectionTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  demoSectionDesc: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  demoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    justifyContent: 'space-between',
+  },
+  demoCard: {
+    width: '48%',
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.xs,
+  },
+  demoCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+    gap: 4,
+  },
+  demoCardName: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    flexShrink: 1,
+  },
+  roleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  roleBadgeText: {
+    color: Colors.textInverse,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  demoCardEmail: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 2,
   },
 });

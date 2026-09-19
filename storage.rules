@@ -12,10 +12,9 @@ service firebase.storage {
       allow read: if request.auth != null && (
         request.auth.uid == userId
         || (request.auth.token.email in [
-          "tammu.admin@mahasetu.gov.in",
-          "shanmugam.admin@mahasetu.gov.in",
-          "tammu@mahasetu.gov.in",
-          "shanmugam@mahasetu.gov.in"
+          "admin.onboarding@mahasetu.gov.in",
+          "admin.system@mahasetu.gov.in",
+          "admin@mahasetu.gov.in"
         ])
       );
 
@@ -27,10 +26,9 @@ service firebase.storage {
       allow delete: if request.auth != null && (
         request.auth.uid == userId
         || (request.auth.token.email in [
-          "tammu.admin@mahasetu.gov.in",
-          "shanmugam.admin@mahasetu.gov.in",
-          "tammu@mahasetu.gov.in",
-          "shanmugam@mahasetu.gov.in"
+          "admin.onboarding@mahasetu.gov.in",
+          "admin.system@mahasetu.gov.in",
+          "admin@mahasetu.gov.in"
         ])
       );
     }

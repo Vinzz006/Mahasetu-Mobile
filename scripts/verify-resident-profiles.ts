@@ -105,10 +105,10 @@ async function runVerification() {
   // Test 2: Sequential Citizen Profile Persistence for all 4 Citizens
   console.log('\n[Suite 2: Four Citizen Accounts Profile Persistence]');
   const citizens = [
-    { name: 'Anusha G.', email: 'anusha@mahasetu.gov.in', city: 'Mumbai', pin: '400001' },
-    { name: 'Muthumayil M.', email: 'muthumayil@mahasetu.gov.in', city: 'Pune', pin: '411001' },
-    { name: 'Akshita S S', email: 'akshita@mahasetu.gov.in', city: 'Nagpur', pin: '440001' },
-    { name: 'Kanimozhi N', email: 'kanimozhi@mahasetu.gov.in', city: 'Nashik', pin: '422001' },
+    { name: 'Priya Sharma', email: 'citizen.priya@mahasetu.gov.in', city: 'Mumbai', pin: '400001' },
+    { name: 'Rahul Verma', email: 'citizen.rahul@mahasetu.gov.in', city: 'Pune', pin: '411001' },
+    { name: 'Sneha Patil', email: 'citizen.sneha@mahasetu.gov.in', city: 'Nagpur', pin: '440001' },
+    { name: 'Pooja Kulkarni', email: 'citizen.pooja@mahasetu.gov.in', city: 'Nashik', pin: '422001' },
   ];
 
   const citizenUids: Record<string, string> = {};
@@ -204,18 +204,18 @@ async function runVerification() {
 
   // Test 3: Cross-Citizen Data Isolation Security Check
   console.log('\n[Suite 3: Cross-Citizen Isolation & Access Control]');
-  // Sign in as Anusha
-  const anushaCred = await signInWithEmailAndPassword(auth, 'anusha@mahasetu.gov.in', DEMO_PASSWORD);
-  const anushaUid = anushaCred.user.uid;
-  const muthuUid = citizenUids['muthumayil@mahasetu.gov.in'];
+  // Sign in as Priya
+  const priyaCred = await signInWithEmailAndPassword(auth, 'citizen.priya@mahasetu.gov.in', DEMO_PASSWORD);
+  const priyaUid = priyaCred.user.uid;
+  const rahulUid = citizenUids['citizen.rahul@mahasetu.gov.in'];
 
-  console.log(`Signed in as Anusha (${anushaUid}). Attempting unauthorized access to Muthumayil (${muthuUid})...`);
+  console.log(`Signed in as Priya (${priyaUid}). Attempting unauthorized access to Rahul (${rahulUid})...`);
 
   let crossReadBlocked = false;
   try {
-    const muthuDoc = await getDoc(doc(db, 'residentProfiles', muthuUid));
+    const rahulDoc = await getDoc(doc(db, 'residentProfiles', rahulUid));
     // If Firestore rules deny access, getDoc throws 'permission-denied'
-    if (!muthuDoc.exists()) {
+    if (!rahulDoc.exists()) {
       crossReadBlocked = true;
     }
   } catch (err: any) {
@@ -225,12 +225,12 @@ async function runVerification() {
     }
   }
 
-  // Also test unauthorized write: Anusha attempting to overwrite Muthumayil's profile
+  // Also test unauthorized write: Priya attempting to overwrite Rahul's profile
   let crossWriteBlocked = false;
   try {
-    await setDoc(doc(db, 'residentProfiles', muthuUid), {
-      userId: anushaUid,
-      personalDetails: { fullLegalName: 'Hacked By Anusha' },
+    await setDoc(doc(db, 'residentProfiles', rahulUid), {
+      userId: priyaUid,
+      personalDetails: { fullLegalName: 'Hacked By Priya' },
     });
   } catch (err: any) {
     if (err.code === 'permission-denied') {
@@ -245,39 +245,41 @@ async function runVerification() {
 
   // Test 4: Passport PDF Logic & Size Validation
   console.log('\n[Suite 4: Passport Validation & Toggle Logic]');
-  const anushaCred2 = await signInWithEmailAndPassword(auth, 'anusha@mahasetu.gov.in', DEMO_PASSWORD);
+  const priyaCred2 = await signInWithEmailAndPassword(auth, 'citizen.priya@mahasetu.gov.in', DEMO_PASSWORD);
   
   // Update passport to YES with PDF metadata
   const samplePdfMetadata = {
     hasPassport: true,
-    documentPath: `residentDocuments/${anushaUid}/passport/passport_sample.pdf`,
+    documentPath: `residentDocuments/${priyaUid}/passport/passport_sample.pdf`,
     fileName: 'passport_sample.pdf',
     fileSize: 2.4 * 1024 * 1024, // 2.4 MB
-    uploadedAt: new Date().toISOString(),
+    uploadDate: new Date().toISOString(),
+    mimeType: 'application/pdf',
   };
 
-  await setDoc(doc(db, 'residentProfiles', anushaUid), { passport: samplePdfMetadata }, { merge: true });
-  const passportSnap = await getDoc(doc(db, 'residentProfiles', anushaUid));
+  await setDoc(doc(db, 'residentProfiles', priyaUid), { passport: samplePdfMetadata }, { merge: true });
+  const passportSnap = await getDoc(doc(db, 'residentProfiles', priyaUid));
   const pData = passportSnap.data() as ResidentProfile;
-  assert(pData.passport.hasPassport === true, 'Passport set to YES');
-  assert(pData.passport.fileName === 'passport_sample.pdf', 'Passport fileName recorded');
+  assert(pData.passport.hasPassport === true, 'Passport switched to YES');
+  assert(pData.passport.documentPath?.includes(priyaUid), 'Passport path includes user UID');
 
-  // Test Toggle YES -> NO: Clears metadata
+  // Toggle passport back to NO (clears documentPath and fileName)
   await setDoc(
-    doc(db, 'residentProfiles', anushaUid),
+    doc(db, 'residentProfiles', priyaUid),
     {
       passport: {
         hasPassport: false,
         documentPath: null,
         fileName: null,
         fileSize: null,
-        uploadedAt: null,
+        uploadDate: null,
+        mimeType: null,
       },
     },
     { merge: true }
   );
 
-  const passportClearedSnap = await getDoc(doc(db, 'residentProfiles', anushaUid));
+  const passportClearedSnap = await getDoc(doc(db, 'residentProfiles', priyaUid));
   const pCleared = passportClearedSnap.data() as ResidentProfile;
   assert(pCleared.passport.hasPassport === false, 'Passport switched to NO');
   assert(pCleared.passport.documentPath === null, 'Passport documentPath cleared');
@@ -287,7 +289,7 @@ async function runVerification() {
 
   // Test 5: Admin & Department Authorization
   console.log('\n[Suite 5: Admin & Department Authorization]');
-  const adminCred = await signInWithEmailAndPassword(auth, 'tammu.admin@mahasetu.gov.in', DEMO_PASSWORD);
+  const adminCred = await signInWithEmailAndPassword(auth, 'admin.onboarding@mahasetu.gov.in', DEMO_PASSWORD);
   const adminUid = adminCred.user.uid;
   console.log(`Signed in as Administrator (${adminUid})`);
 
@@ -296,7 +298,7 @@ async function runVerification() {
     userId: adminUid,
     profileType: 'ADMIN',
     personalDetails: {
-      fullLegalName: 'Tammu Vedesh Kumar',
+      fullLegalName: 'Anil Shinde',
       dateOfBirth: '1985-03-10',
       age: 41,
       gender: 'Male',
@@ -318,17 +320,17 @@ async function runVerification() {
     contact: {
       phoneNumber: '+919876543220',
       telephoneNumber: '022-22001199',
-      emailAddress: 'tammu.admin@mahasetu.gov.in',
+      emailAddress: 'admin.onboarding@mahasetu.gov.in',
     },
     family: {
-      fatherName: 'K. Kumar',
+      fatherName: 'K. Shinde',
       fatherPhoneNumber: '',
       fatherMobileNumber: '+919876543290',
       fatherEmail: '',
       motherName: 'L. Devi',
       motherMobileNumber: '',
       motherEmail: '',
-      spouseName: 'V. Kumar',
+      spouseName: 'V. Shinde',
       spouseNumber: '+919876543291',
       guardianName: '',
       guardianPhoneNumber: '',
@@ -336,14 +338,14 @@ async function runVerification() {
     },
     identity: {
       aadhaarReference: 'XXXX-XXXX-9901',
-      panCardNumber: 'TAMMU1234A',
+      panCardNumber: 'ANIL1234A',
     },
     education: {
       educationalQualification: "Master's Degree (Post Graduate)",
     },
     bank: {
       bankName: 'State Bank of India',
-      accountHolderName: 'Tammu Vedesh Kumar',
+      accountHolderName: 'Anil Shinde',
       accountNumber: '30099887766',
       ifscCode: 'SBIN0000300',
       branchName: 'Secretariat Branch',
@@ -377,7 +379,7 @@ async function runVerification() {
   );
 
   // Admin reads Citizen profile (authorized administrative access)
-  const citizenDocFromAdmin = await getDoc(doc(db, 'residentProfiles', anushaUid));
+  const citizenDocFromAdmin = await getDoc(doc(db, 'residentProfiles', priyaUid));
   assert(citizenDocFromAdmin.exists(), 'Admin can read authorized citizen resident profile');
 
   await signOut(auth);

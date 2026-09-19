@@ -11,17 +11,17 @@ async function runLiveEmailAuthTests() {
 
   // 1. DEMO USER SIGN IN WITH AUTHENTIC FIREBASE AUTH
   console.log('[1/5] Testing Demo Account Sign In via Firebase Auth...');
-  const anushaDemo = DEMO_USERS.find((u) => u.id === 'demo-anusha');
-  if (!anushaDemo) throw new Error('Anusha demo user not found in constants');
+  const priyaDemo = DEMO_USERS.find((u) => u.id === 'demo-priya');
+  if (!priyaDemo) throw new Error('Priya demo user not found in constants');
 
-  const anushaProfile = await authService.switchDemoAccount(anushaDemo);
+  const priyaProfile = await authService.switchDemoAccount(priyaDemo);
   console.log('  ✓ Demo authenticated successfully:');
-  console.log(`    - UID: ${anushaProfile.uid}`);
-  console.log(`    - Role: ${anushaProfile.role}`);
-  console.log(`    - Status: ${anushaProfile.status}`);
+  console.log(`    - UID: ${priyaProfile.uid}`);
+  console.log(`    - Role: ${priyaProfile.role}`);
+  console.log(`    - Status: ${priyaProfile.status}`);
   console.log(`    - auth.currentUser.uid: ${auth.currentUser?.uid}`);
 
-  if (auth.currentUser?.uid !== anushaProfile.uid) {
+  if (auth.currentUser?.uid !== priyaProfile.uid) {
     throw new Error('auth.currentUser does not match profile UID!');
   }
 
@@ -31,7 +31,7 @@ async function runLiveEmailAuthTests() {
     'SCHEME_SCHOLARSHIP_01',
     'National Merit Scholarship Scheme 2026',
     'SCHOLARSHIP_01',
-    anushaProfile,
+    priyaProfile,
     { annualIncome: 120000, category: 'GENERAL' }
   );
 

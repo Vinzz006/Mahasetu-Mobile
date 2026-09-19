@@ -1,5 +1,11 @@
 function resolveApiBaseUrl(): string {
-  // 1. Auto-detect from Expo hostUri if running on device via Metro
+  // 1. If running in web browser, always connect to the same host on port 8000
+  if (typeof window !== 'undefined' && (window as any)?.location?.hostname) {
+    const host = (window as any).location.hostname;
+    return `http://${host}:8000`;
+  }
+
+  // 2. Auto-detect from Expo hostUri if running on device via Metro
   try {
     const Constants = require('expo-constants')?.default || require('expo-constants');
     const hostUri =
@@ -14,7 +20,7 @@ function resolveApiBaseUrl(): string {
     }
   } catch {}
 
-  // 2. Explicit configured URL in .env
+  // 3. Explicit configured URL in .env
   const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (envUrl) {
     return envUrl;
@@ -31,7 +37,9 @@ export const Config = {
   FIREBASE_MESSAGING_SENDER_ID: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '829459489988',
   FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '1:829459489988:web:b5c81579595f1f118ad591',
   FIREBASE_MEASUREMENT_ID: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID || 'G-XPGC7JNSRF',
-  API_BASE_URL: resolveApiBaseUrl(),
+  get API_BASE_URL(): string {
+    return resolveApiBaseUrl();
+  },
 };
 
 export const config = {
@@ -44,5 +52,7 @@ export const config = {
     appId: Config.FIREBASE_APP_ID,
     measurementId: Config.FIREBASE_MEASUREMENT_ID,
   },
-  apiBaseUrl: Config.API_BASE_URL,
+  get apiBaseUrl(): string {
+    return Config.API_BASE_URL;
+  },
 };
