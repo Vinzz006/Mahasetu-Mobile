@@ -2,45 +2,79 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.role in ["ADMIN", "admin"] && request.auth.token.status == "APPROVED";
+    }
+
+    function isAuditor() {
+      return signedIn() && request.auth.token.role in ["AUDITOR", "auditor"] && request.auth.token.status == "APPROVED";
+    }
+
+    function isDepartmentOfficer() {
+      return signedIn() && request.auth.token.status == "APPROVED"
+        && request.auth.token.role in ["DEPARTMENT_A", "DEPARTMENT_B", "DEPARTMENT_C", "department_officer"];
+    }
+
     // ==========================================================
     // 1. PASSPORT & RESIDENT DOCUMENTS (residentDocuments/{userId}/passport/{fileName})
     // - Files must be strictly under 10 MB (10 * 1024 * 1024 bytes)
-    // - PDF files only
-    // - Accessible only by authenticated owner and admin
+    // - PDF files only (MIME application/pdf and .pdf extension)
+    // - Accessible by authenticated owner, admin, auditor, and department officers
     // ==========================================================
     match /residentDocuments/{userId}/passport/{fileName} {
-      allow read: if request.auth != null && (
+      allow read: if signedIn() && (
         request.auth.uid == userId
-        || (request.auth.token.email in [
-          "tammu.admin@mahasetu.gov.in",
-          "shanmugam.admin@mahasetu.gov.in",
-          "tammu@mahasetu.gov.in",
-          "shanmugam@mahasetu.gov.in"
-        ])
+        || isAdmin()
+        || isAuditor()
+        || isDepartmentOfficer()
       );
 
-      allow create, update: if request.auth != null
+      allow create, update: if signedIn()
         && request.auth.uid == userId
         && request.resource.size <= 10 * 1024 * 1024
-        && (request.resource.contentType == 'application/pdf' || fileName.matches('.*\\.pdf'));
+        && request.resource.contentType == 'application/pdf'
+        && fileName.matches('.*\\.pdf');
 
-      allow delete: if request.auth != null && (
+      allow delete: if signedIn() && (
         request.auth.uid == userId
-        || (request.auth.token.email in [
-          "tammu.admin@mahasetu.gov.in",
-          "shanmugam.admin@mahasetu.gov.in",
-          "tammu@mahasetu.gov.in",
-          "shanmugam@mahasetu.gov.in"
-        ])
+        || isAdmin()
       );
     }
 
     // ==========================================================
     // 2. APPLICATION SUPPORTING DOCUMENTS (users/{userId}/applications/{appId}/{fileName})
+    // - Scoped read: owner, admin, auditor, department officer
+    // - Restricted write: 10MB limit and content type allowlist
     // ==========================================================
     match /users/{userId}/applications/{appId}/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if signedIn() && (
+        request.auth.uid == userId
+        || isAdmin()
+        || isAuditor()
+        || isDepartmentOfficer()
+      );
+
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/(jpeg|png)')
+        && fileName.matches('.*\\.(pdf|jpg|jpeg|png)');
+
+      allow delete: if signedIn() && (
+        request.auth.uid == userId
+        || isAdmin()
+      );
+    }
+
+    // ==========================================================
+    // DEFAULT DENY FALLBACK
+    // ==========================================================
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
