@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authService } from '../services/authService';
 import { UserProfile, UserRole } from '../types';
+import { DemoUser } from '../constants/demoData';
 import { router } from 'expo-router';
 import { Alert } from 'react-native';
 
@@ -22,6 +23,7 @@ interface AuthContextType {
   isSuspended: boolean;
   signInWithEmail: (email: string, password: string) => Promise<UserProfile>;
   signUpWithEmail: (email: string, password: string, displayName: string) => Promise<UserProfile>;
+  loginAsDemoUser: (demo: DemoUser) => Promise<UserProfile>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -185,6 +187,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const loginAsDemoUser = async (demo: DemoUser): Promise<UserProfile> => {
+    setLoading(true);
+    setAuthState('Loading');
+    try {
+      const profile = await authService.switchDemoAccount(demo);
+      setUser(profile);
+      const state = deriveAuthState(profile);
+      setAuthState(state);
+      await routeUserByRole(profile);
+      return profile;
+    } catch (e: any) {
+      console.warn('Demo login error:', e?.message || e);
+      setAuthState('Unauthenticated');
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signUpWithEmail = async (
     email: string,
     password: string,
@@ -246,6 +267,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isSuspended,
         signInWithEmail,
         signUpWithEmail,
+        loginAsDemoUser,
         sendPasswordReset,
         logout,
         refreshProfile,

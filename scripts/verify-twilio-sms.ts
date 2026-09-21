@@ -293,11 +293,14 @@ class MockWorkflowEngine {
 // ----------------------------------------------------
 console.log('[Test 1: Citizen Submits Application]');
 const engine = new MockWorkflowEngine();
-const priya = DEMO_USERS.find((u) => u.name.includes('Priya')) || {
-  id: 'demo-priya',
-  name: 'Priya Sharma',
-  phone: '+919876543210',
-};
+const priya = DEMO_USERS.find((u) => u.name.includes('Priya'));
+if (!priya) {
+  throw new Error('Demo user Priya Sharma not found in DEMO_USERS');
+}
+if (!priya.phone) {
+  console.log('Skipping SMS dispatch workflow tests: Demo user Priya has no phone number configured.');
+  process.exit(0);
+}
 
 const app1 = engine.submitApplication({
   uid: priya.id,

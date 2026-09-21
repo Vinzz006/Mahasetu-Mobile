@@ -19,6 +19,12 @@ import { useAuth } from '../../store/AuthContext';
 import { authService } from '../../services/authService';
 import { DEMO_USERS, DemoUser } from '../../constants/demoData';
 
+const DEPARTMENT_NAMES: Record<string, string> = {
+  DEPT_A: 'Department A — Revenue & Civil Supplies',
+  DEPT_B: 'Department B — Social Welfare & Inclusion',
+  DEPT_C: 'Department C — Labour & Employment Welfare',
+};
+
 export default function LoginScreen() {
   const { loginAsDemoUser, signInWithEmail, signUpWithEmail, sendPasswordReset } = useAuth();
 
@@ -437,7 +443,7 @@ export default function LoginScreen() {
                 </View>
                 <View style={styles.demoInfo}>
                   <Text style={styles.demoName}>{demo.name}</Text>
-                  <Text style={styles.demoRole}>Role: Citizen • {demo.city}</Text>
+                  <Text style={styles.demoRole}>Role: Citizen{demo.city ? ` • ${demo.city}` : ''}</Text>
                 </View>
                 {loadingDemoId === demo.id ? (
                   <ActivityIndicator color={Colors.primary} size="small" />
@@ -461,7 +467,7 @@ export default function LoginScreen() {
                 </View>
                 <View style={styles.demoInfo}>
                   <Text style={styles.demoName}>{demo.name}</Text>
-                  <Text style={styles.demoRole}>{demo.departmentName}</Text>
+                  <Text style={styles.demoRole}>{(demo.departmentId && DEPARTMENT_NAMES[demo.departmentId]) || 'Department Officer'}</Text>
                 </View>
                 {loadingDemoId === demo.id ? (
                   <ActivityIndicator color={Colors.accent} size="small" />

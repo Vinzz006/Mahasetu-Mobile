@@ -431,30 +431,30 @@ export const authService = {
 
     // Map role to canonical Firestore role
     let canonicalRole: UserRole = 'CITIZEN';
-    const rawRole = (demo.role || '').toLowerCase();
-    if (rawRole === 'citizen' || demo.role === 'CITIZEN') {
+    const rawRole = String(demo.role || '').toLowerCase();
+    if (rawRole === 'citizen') {
       canonicalRole = 'CITIZEN';
-    } else if (rawRole === 'admin' || demo.role === 'ADMIN') {
+    } else if (rawRole === 'admin') {
       canonicalRole = 'ADMIN';
-    } else if (rawRole === 'auditor' || demo.role === 'AUDITOR') {
+    } else if (rawRole === 'auditor') {
       canonicalRole = 'AUDITOR';
     } else if (
-      demo.role === 'DEPARTMENT_A' ||
+      rawRole === 'department_a' ||
       (rawRole === 'department_officer' && demo.departmentId === 'DEPT_A')
     ) {
       canonicalRole = 'DEPARTMENT_A';
     } else if (
-      demo.role === 'DEPARTMENT_B' ||
+      rawRole === 'department_b' ||
       (rawRole === 'department_officer' && demo.departmentId === 'DEPT_B')
     ) {
       canonicalRole = 'DEPARTMENT_B';
     } else if (
-      demo.role === 'DEPARTMENT_C' ||
+      rawRole === 'department_c' ||
       (rawRole === 'department_officer' && demo.departmentId === 'DEPT_C')
     ) {
       canonicalRole = 'DEPARTMENT_C';
     } else {
-      canonicalRole = demo.role as UserRole;
+      canonicalRole = (demo.role as unknown as UserRole) || 'CITIZEN';
     }
 
     const canonicalDeptId =
@@ -484,7 +484,7 @@ export const authService = {
         state: data.state || demo.state,
         pinCode: data.pinCode || demo.pinCode,
         aadhaarRef: data.aadhaarRef || demo.aadhaarRef,
-        isVerified: !!data.isVerified || demo.isVerified,
+        isVerified: !!data.isVerified || !!demo.isVerified,
         verifiedAt: data.verifiedAt?.toDate?.()?.toISOString() || data.verifiedAt || new Date().toISOString(),
         createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -519,7 +519,7 @@ export const authService = {
         state: demo.state,
         pinCode: demo.pinCode,
         aadhaarRef: demo.aadhaarRef,
-        isVerified: demo.isVerified,
+        isVerified: !!demo.isVerified,
         verifiedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

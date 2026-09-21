@@ -261,7 +261,7 @@ async function runVerification() {
   const passportSnap = await getDoc(doc(db, 'residentProfiles', priyaUid));
   const pData = passportSnap.data() as ResidentProfile;
   assert(pData.passport.hasPassport === true, 'Passport switched to YES');
-  assert(pData.passport.documentPath?.includes(priyaUid), 'Passport path includes user UID');
+  assert(pData.passport.documentPath?.includes(priyaUid) === true, 'Passport path includes user UID');
 
   // Toggle passport back to NO (clears documentPath and fileName)
   await setDoc(
