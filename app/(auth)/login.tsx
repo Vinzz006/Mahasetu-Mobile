@@ -81,8 +81,16 @@ export default function LoginScreen() {
       Alert.alert('Missing Password', 'Please enter a password.');
       return;
     }
-    if (password.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+    if (password.length < 10 || !hasUpperCase || !hasLowerCase || !hasNumber || !hasSpecialChar) {
+      Alert.alert(
+        'Weak Password',
+        'Password must be at least 10 characters long and include an uppercase letter, lowercase letter, number, and a special character.'
+      );
       return;
     }
     if (password !== confirmPassword) {

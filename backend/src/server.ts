@@ -281,11 +281,34 @@ export function createBackendServer(): http.Server {
         const appNumber = `MS-${crypto.randomInt(10000, 99999)}`;
         const citizenId = claims.uid;
 
-        // Strictly allow-list form fields (ignore any body-supplied IDs or statuses)
-        const serviceId = typeof body.serviceId === 'string' ? body.serviceId.substring(0, 100) : 'GENERAL';
+        // Strictly validate required serviceId
+        if (typeof body.serviceId !== 'string' || !body.serviceId.trim()) {
+          sendError(res, 400, 'Field "serviceId" is required and must be a non-empty string.', requestId);
+          return;
+        }
+        const serviceId = body.serviceId.trim();
+        if (!/^[a-zA-Z0-9_-]{2,100}$/.test(serviceId)) {
+          sendError(res, 400, 'Invalid "serviceId" format: must be alphanumeric characters or underscores (2-100 chars).', requestId);
+          return;
+        }
+
         const serviceName = typeof body.serviceName === 'string' ? body.serviceName.substring(0, 200) : 'General Citizen Service';
         const category = typeof body.category === 'string' ? body.category.substring(0, 100) : 'GENERAL';
-        const formData = typeof body.formData === 'object' && body.formData !== null ? body.formData : {};
+
+        // Validate and sanitize formData fields
+        const sanitizedFormData: Record<string, any> = {};
+        if (body.formData && typeof body.formData === 'object' && !Array.isArray(body.formData)) {
+          for (const [k, v] of Object.entries(body.formData).slice(0, 50)) {
+            if (/^[a-zA-Z0-9_.-]{1,60}$/.test(k)) {
+              if (typeof v === 'string') {
+                sanitizedFormData[k] = v.substring(0, 2000);
+              } else if (typeof v === 'number' || typeof v === 'boolean') {
+                sanitizedFormData[k] = v;
+              }
+            }
+          }
+        }
+        const formData = sanitizedFormData;
         const documents = Array.isArray(body.documents) ? body.documents.slice(0, 20) : [];
 
         const batch = adminDb.batch();
@@ -479,8 +502,13 @@ export function createBackendServer(): http.Server {
           return;
         }
 
+        if (body.status && body.status !== 'VERIFIED' && body.status !== 'REJECTED') {
+          sendError(res, 400, 'Invalid status: must be either VERIFIED or REJECTED.', requestId);
+          return;
+        }
+
         const comments = typeof body.comments === 'string'
-          ? body.comments.substring(0, 500)
+          ? body.comments.substring(0, 1000).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim()
           : 'Verified in compliance with MahaSetu guidelines';
 
         const appRef = adminDb.collection('applications').doc(appId);
@@ -763,7 +791,8 @@ export function createBackendServer(): http.Server {
           console.warn('[Server] Profile lookup fallback:', uErr.message);
         }
 
-        const message = typeof body.message === 'string' ? body.message.trim() : '';
+        const rawMessage = typeof body.message === 'string' ? body.message.trim() : '';
+        const message = rawMessage.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
         if (!message) {
           sendError(res, 400, 'Message content is required.', requestId);
           return;
@@ -773,12 +802,16 @@ export function createBackendServer(): http.Server {
           return;
         }
 
+        const conversationId = typeof body.conversationId === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(body.conversationId)
+          ? body.conversationId
+          : undefined;
+
         try {
           const chatResult = await geminiService.generateMahaSetuChatResponse({
             userId,
             userRole: userProfile.role,
             message,
-            conversationId: body.conversationId,
+            conversationId,
             userProfile,
           });
 

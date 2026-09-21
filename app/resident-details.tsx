@@ -25,6 +25,7 @@ import {
 } from '../services/residentProfileService';
 import { ResidentProfile } from '../types';
 import * as DocumentPicker from 'expo-document-picker';
+import { validateAadhaar } from '../lib/aadhaar';
 
 // Dropdown options
 const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
@@ -322,6 +323,18 @@ export default function ResidentDetailsScreen() {
       );
       setExpandedSections((prev) => ({ ...prev, 8: true }));
       return;
+    }
+
+    if (formData.identity?.aadhaarReference) {
+      const rawAadhaar = formData.identity.aadhaarReference.replace(/[\s-]/g, '');
+      if (/^\d{12}$/.test(rawAadhaar)) {
+        const vResult = validateAadhaar(rawAadhaar);
+        if (!vResult.isValid) {
+          Alert.alert('Invalid Aadhaar', vResult.error || 'Aadhaar Verhoeff checksum validation failed.');
+          setExpandedSections((prev) => ({ ...prev, 5: true }));
+          return;
+        }
+      }
     }
 
     setSaving(true);

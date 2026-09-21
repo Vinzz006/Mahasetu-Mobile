@@ -127,10 +127,37 @@ export const authService = {
   },
 
   /**
+  /**
+   * Validates password strength: at least 10 characters, uppercase, lowercase, digit, and special char.
+   */
+  validatePasswordStrength(password: string): { isValid: boolean; error?: string } {
+    if (!password || password.length < 10) {
+      return { isValid: false, error: 'Password must be at least 10 characters long.' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one uppercase letter.' };
+    }
+    if (!/[a-z]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one lowercase letter.' };
+    }
+    if (!/[0-9]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one number.' };
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one special character.' };
+    }
+    return { isValid: true };
+  },
+
+  /**
    * Authentic Email & Password Registration via Firebase Auth
    * Starts with role=null and status='PENDING' until Admin approval
    */
   async signUpWithEmail(email: string, password: string, displayName: string): Promise<UserProfile> {
+    const passCheck = this.validatePasswordStrength(password);
+    if (!passCheck.isValid) {
+      throw new Error(passCheck.error || 'Password does not meet complexity requirements.');
+    }
     const cleanEmail = email.trim().toLowerCase();
     const result = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     try {

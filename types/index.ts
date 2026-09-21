@@ -302,6 +302,8 @@ export interface ResidentFamily {
 
 export interface ResidentIdentity {
   aadhaarReference: string;
+  aadhaarHash?: string;
+  aadhaarLast4?: string;
   panCardNumber: string;
 }
 

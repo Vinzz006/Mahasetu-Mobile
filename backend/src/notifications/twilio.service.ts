@@ -84,7 +84,27 @@ class SmsRateLimiter {
   }
 }
 
+// In-memory daily SMS cap: strict maximum 5 SMS per citizen/phone per calendar day
+export class DailySmsCap {
+  private dailyRecords = new Map<string, { count: number; date: string }>();
+
+  isAllowed(identifier: string, maxPerDay: number = 5): boolean {
+    const today = new Date().toISOString().split('T')[0];
+    const rec = this.dailyRecords.get(identifier);
+    if (!rec || rec.date !== today) {
+      this.dailyRecords.set(identifier, { count: 1, date: today });
+      return true;
+    }
+    if (rec.count >= maxPerDay) {
+      return false;
+    }
+    rec.count++;
+    return true;
+  }
+}
+
 const smsRateLimiter = new SmsRateLimiter();
+export const dailySmsCap = new DailySmsCap();
 
 export class TwilioMessagingService {
   /**
@@ -108,22 +128,36 @@ export class TwilioMessagingService {
   /**
    * Sends an application status SMS to the citizen's registered mobile number
    * using Twilio Programmable Messaging API.
+   * STRICT SECURITY: Only pre-approved statutory templates from getSmsMessage are dispatched.
    */
   async sendApplicationStatusSms(params: SendStatusSmsParams): Promise<SmsResult> {
     const { applicationId, citizenId, eventType } = params;
     // Strip non-alphanumeric characters from applicationNumber to prevent smishing injection
     const cleanAppNumber = (params.applicationNumber || applicationId).replace(/[^a-zA-Z0-9-]/g, '');
-    const message = params.message || getSmsMessage(eventType, cleanAppNumber);
+    
+    // STRICT SECURITY: Pre-approved statutory SMS template only (never trust caller text)
+    const message = getSmsMessage(eventType, cleanAppNumber);
     const config = this.getConfig();
 
-    // 1. Enforce per-citizen SMS cap (10/hour)
-    if (!smsRateLimiter.isAllowed(citizenId, 10)) {
-      console.warn(`[TwilioService] Rate limit exceeded: Citizen ${citizenId} has reached maximum 10 SMS/hour cap.`);
+    // 1a. Enforce daily SMS cap (strict max 5 per citizen / day)
+    if (!dailySmsCap.isAllowed(citizenId, 5)) {
+      console.warn(`[TwilioService] Abuse prevention: Citizen ${citizenId} exceeded daily cap of 5 SMS.`);
       return {
         success: false,
         skipped: true,
         status: 'SKIPPED',
-        error: 'Citizen hourly SMS rate limit reached (max 10/hour).',
+        error: 'Citizen daily SMS limit reached (maximum 5 SMS per day).',
+      };
+    }
+
+    // 1b. Enforce per-citizen hourly burst cap (10/hour)
+    if (!smsRateLimiter.isAllowed(citizenId, 10)) {
+      console.warn(`[TwilioService] Rate limit exceeded: Citizen ${citizenId} has reached hourly burst cap.`);
+      return {
+        success: false,
+        skipped: true,
+        status: 'SKIPPED',
+        error: 'Citizen hourly SMS rate limit reached.',
       };
     }
 

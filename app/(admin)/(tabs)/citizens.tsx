@@ -10,6 +10,7 @@ import {
   CitizenVerificationItem,
 } from '../../../services/adminDashboardService';
 import { authService } from '../../../services/authService';
+import { maskAadhaar } from '../../../lib/aadhaar';
 
 export default function AdminCitizensScreen() {
   const [citizens, setCitizens] = useState<CitizenVerificationItem[]>([]);
@@ -110,7 +111,7 @@ export default function AdminCitizensScreen() {
                   </View>
                   <View style={styles.info}>
                     <Text style={styles.name}>{item.name}</Text>
-                    <Text style={styles.aadhaar}>Aadhaar: {item.aadhaarRef}</Text>
+                    <Text style={styles.aadhaar}>Aadhaar: {maskAadhaar(item.aadhaarRef)}</Text>
                     <Text style={styles.location}>
                       {item.city}, {item.district}
                     </Text>
