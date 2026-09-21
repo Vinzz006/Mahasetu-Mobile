@@ -109,3 +109,10 @@ While the codebase is now fully hardened against static and architectural vulner
 ### 4. Configure Cloud Monitoring & Billing Alerts
 - Set a budget alert on Google Cloud and Twilio to detect any abnormal traffic surges.
 - Verify Twilio production credentials are set exclusively as backend environment variables.
+
+### 5. Upstream Metro Build-Tool Vulnerability (`image-size`)
+- **Vulnerability:** [GHSA-w3rx-r6r6-pgpr](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr) and [GHSA-5p2g-fcmc-qvqq](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq) (high severity DoS) in `image-size@1.2.1` under `metro@0.81.5`.
+- **Classification:** Build-time dependency only (Metro asset bundler); zero reachability in mobile client runtime or backend server.
+- **Upstream Incompatibility:** Remediation exists only in `image-size >=2.0.3`. Metro 0.81 imports `image-size` via CommonJS (`require("image-size")(...)`), whereas `image-size@2.x` exports `exports.default`, causing `TypeError: getImageSize is not a function`.
+- **Policy Enforcement:** CI (`.github/workflows/security.yml`) explicitly pins this documented build-tool exception while actively blocking all other high and critical vulnerabilities across runtime and build dependencies.
+- **Action Required:** Schedule React Native (0.76 -> 0.87+) and Expo (52 -> 57+) upgrade in the next planned major framework upgrade milestone, where Metro 0.87+ eliminates `image-size`.
