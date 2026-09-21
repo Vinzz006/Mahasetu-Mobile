@@ -7,8 +7,7 @@
  * Dedicated solely to Application Status & Verification Notifications.
  */
 
-import { db, sanitizeFirestorePayload, assertNoUndefinedValues } from '../../../lib/firebase';
-import { doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, serverTimestamp } from 'firebase/firestore';
+import { adminDb, FieldValue } from '../lib/firebaseAdmin';
 import { APPLICATION_EVENTS, ApplicationEventType, getSmsMessage, getInAppNotificationDetails } from './events';
 
 export interface SendStatusSmsParams {
@@ -29,9 +28,12 @@ export interface SmsResult {
 }
 
 /**
- * Normalizes phone numbers to standard E.164 format (+91 for Indian numbers)
+ * Normalizes and strictly validates phone numbers to Indian E.164 format (+91XXXXXXXXXX)
  */
-export function normalizePhoneNumber(phone: string): string {
+export function normalizePhoneNumber(phone: string): { valid: boolean; normalized?: string; error?: string } {
+  if (!phone || typeof phone !== 'string') {
+    return { valid: false, error: 'Phone number is required.' };
+  }
   let cleaned = phone.trim().replace(/[\s-]/g, '');
   if (!cleaned.startsWith('+')) {
     if (cleaned.length === 10) {
@@ -40,7 +42,16 @@ export function normalizePhoneNumber(phone: string): string {
       cleaned = `+${cleaned}`;
     }
   }
-  return cleaned;
+
+  // India E.164 allowlist: +91 followed by digits starting with 6, 7, 8, or 9 and 9 subsequent digits
+  const indiaRegex = /^\+91[6-9]\d{9}$/;
+  if (!indiaRegex.test(cleaned)) {
+    return {
+      valid: false,
+      error: 'Invalid phone number format. Only Indian mobile numbers (+91XXXXXXXXXX) are permitted.',
+    };
+  }
+  return { valid: true, normalized: cleaned };
 }
 
 /**
@@ -55,6 +66,25 @@ export function maskPhoneNumber(phone: string): string {
   const stars = '*'.repeat(Math.max(3, clean.length - prefix.length - suffix.length));
   return `${prefix}${stars}${suffix}`;
 }
+
+// In-memory sliding-window SMS rate limiter per citizen (cap at 10/hour)
+class SmsRateLimiter {
+  private history = new Map<string, number[]>();
+
+  isAllowed(citizenId: string, limitPerHour: number = 10): boolean {
+    const now = Date.now();
+    const oneHourMs = 60 * 60 * 1000;
+    const timestamps = (this.history.get(citizenId) || []).filter((t) => now - t < oneHourMs);
+    if (timestamps.length >= limitPerHour) {
+      return false;
+    }
+    timestamps.push(now);
+    this.history.set(citizenId, timestamps);
+    return true;
+  }
+}
+
+const smsRateLimiter = new SmsRateLimiter();
 
 export class TwilioMessagingService {
   /**
@@ -78,30 +108,33 @@ export class TwilioMessagingService {
   /**
    * Sends an application status SMS to the citizen's registered mobile number
    * using Twilio Programmable Messaging API.
-   *
-   * 1. Loads the citizen's phoneNumber from Firestore users/{citizenId}.
-   * 2. Validates that a phone number exists.
-   * 3. Sends SMS through the Twilio Messaging Service (if TWILIO_ENABLED=true).
-   * 4. Returns the Twilio message SID.
-   * 5. Logs success/failure safely in integrationLogs.
-   * 6. Creates a corresponding in-app notification in Firestore.
-   * 7. Never exposes Twilio credentials.
    */
   async sendApplicationStatusSms(params: SendStatusSmsParams): Promise<SmsResult> {
-    const { applicationId, applicationNumber, citizenId, eventType } = params;
-    const message = params.message || getSmsMessage(eventType, applicationNumber);
+    const { applicationId, citizenId, eventType } = params;
+    // Strip non-alphanumeric characters from applicationNumber to prevent smishing injection
+    const cleanAppNumber = (params.applicationNumber || applicationId).replace(/[^a-zA-Z0-9-]/g, '');
+    const message = params.message || getSmsMessage(eventType, cleanAppNumber);
     const config = this.getConfig();
 
-    // 1. Load citizen's phoneNumber from Firestore
+    // 1. Enforce per-citizen SMS cap (10/hour)
+    if (!smsRateLimiter.isAllowed(citizenId, 10)) {
+      console.warn(`[TwilioService] Rate limit exceeded: Citizen ${citizenId} has reached maximum 10 SMS/hour cap.`);
+      return {
+        success: false,
+        skipped: true,
+        status: 'SKIPPED',
+        error: 'Citizen hourly SMS rate limit reached (max 10/hour).',
+      };
+    }
+
+    // 2. Load citizen's phoneNumber from Firestore users collection via Admin SDK
     let citizenPhone: string | null = null;
     let citizenName = 'Citizen';
 
     try {
-      const userRef = doc(db, 'users', citizenId);
-      const userSnap = await getDoc(userRef);
-
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
+      const userDoc = await adminDb.collection('users').doc(citizenId).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data() || {};
         citizenPhone = userData.phoneNumber || userData.phone || null;
         citizenName = userData.name || userData.displayName || citizenName;
       }
@@ -109,12 +142,11 @@ export class TwilioMessagingService {
       console.warn(`[TwilioService] Warning loading user profile for ${citizenId}:`, err.message);
     }
 
-    // 2. Validate that a phone number exists
+    // 3. Validate that a phone number exists and passes Indian E.164 allowlist
     if (!citizenPhone || !citizenPhone.trim()) {
-      const warningMsg = `[TwilioService] Safe Notice: Citizen ${citizenId} has no registered phone number. Skipping SMS for ${applicationNumber}.`;
+      const warningMsg = `[TwilioService] Citizen ${citizenId} has no registered phone number. Skipping SMS for ${cleanAppNumber}.`;
       console.warn(warningMsg);
 
-      // Record safe skipped audit entry
       await this.recordAuditLog({
         applicationId,
         citizenId,
@@ -125,11 +157,10 @@ export class TwilioMessagingService {
         errorReason: 'No registered mobile phone number in citizen profile',
       });
 
-      // Still create in-app notification (SMS is an additional channel)
       await this.createInAppNotification({
         citizenId,
         applicationId,
-        applicationNumber,
+        applicationNumber: cleanAppNumber,
         eventType,
         smsStatus: 'SKIPPED',
         extra: { departmentName: params.departmentName },
@@ -143,16 +174,34 @@ export class TwilioMessagingService {
       };
     }
 
-    const normalizedPhone = normalizePhoneNumber(citizenPhone);
+    const phoneValidation = normalizePhoneNumber(citizenPhone);
+    if (!phoneValidation.valid || !phoneValidation.normalized) {
+      console.warn(`[TwilioService] Rejected non-compliant phone number for ${citizenId}: ${phoneValidation.error}`);
+      await this.recordAuditLog({
+        applicationId,
+        citizenId,
+        eventType,
+        phoneNumberMasked: maskPhoneNumber(citizenPhone),
+        twilioMessageSid: null,
+        status: 'FAILED',
+        errorReason: phoneValidation.error,
+      });
+      return {
+        success: false,
+        status: 'FAILED',
+        error: phoneValidation.error,
+      };
+    }
+
+    const normalizedPhone = phoneValidation.normalized;
     const maskedPhone = maskPhoneNumber(normalizedPhone);
 
-    // 3. Dispatch SMS through Twilio Programmable Messaging API
+    // 4. Dispatch SMS through Twilio Programmable Messaging API
     let twilioSid: string | null = null;
     let dispatchStatus: 'SENT' | 'FAILED' = 'SENT';
     let errorMessage: string | null = null;
 
     if (config.enabled) {
-      // Real Twilio API Call (Server-side only)
       if (!config.isConfigured) {
         console.error('[TwilioService] Real dispatch failed: Twilio credentials not configured in backend.');
         dispatchStatus = 'FAILED';
@@ -166,6 +215,7 @@ export class TwilioMessagingService {
             Body: message,
           });
 
+          // Timeout after 10 seconds via AbortSignal.timeout
           const response = await fetch(
             `https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Messages.json`,
             {
@@ -175,6 +225,7 @@ export class TwilioMessagingService {
                 'Content-Type': 'application/x-www-form-urlencoded',
               },
               body: bodyData.toString(),
+              signal: AbortSignal.timeout(10_000),
             }
           );
 
@@ -191,19 +242,18 @@ export class TwilioMessagingService {
           }
         } catch (callError: any) {
           dispatchStatus = 'FAILED';
-          errorMessage = callError.message || 'Twilio network timeout';
+          errorMessage = callError.name === 'TimeoutError' ? 'Twilio network request timed out (10s limit)' : callError.message;
           console.warn(`[TwilioService] Twilio call failed (${maskedPhone}):`, errorMessage);
         }
       }
     } else {
       // Demo Mode (TWILIO_ENABLED=false)
-      // Generates simulated Twilio Message SID for testing while logging clearly
       twilioSid = `SM_sim_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       dispatchStatus = 'SENT';
       console.log(`[TwilioService] [DEMO_MODE TWILIO_ENABLED=false] Simulated SMS to ${maskedPhone} [${eventType}]: "${message}"`);
     }
 
-    // 4. Record SMS delivery attempt in integrationLogs
+    // 5. Record SMS delivery attempt in integrationLogs via Admin SDK
     await this.recordAuditLog({
       applicationId,
       citizenId,
@@ -214,11 +264,11 @@ export class TwilioMessagingService {
       errorReason: errorMessage,
     });
 
-    // 5. Create in-app notification in Firestore
+    // 6. Create in-app notification via Admin SDK
     await this.createInAppNotification({
       citizenId,
       applicationId,
-      applicationNumber,
+      applicationNumber: cleanAppNumber,
       eventType,
       smsStatus: dispatchStatus,
       twilioMessageSid: twilioSid,
@@ -233,10 +283,6 @@ export class TwilioMessagingService {
     };
   }
 
-  /**
-   * Persists SMS delivery attempt to integrationLogs (audit log)
-   * Strictly avoids storing sensitive credentials.
-   */
   private async recordAuditLog(log: {
     applicationId: string;
     citizenId: string;
@@ -248,9 +294,7 @@ export class TwilioMessagingService {
   }) {
     try {
       const logId = `sms_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const logRef = doc(db, 'integrationLogs', logId);
-
-      const payload = sanitizeFirestorePayload({
+      await adminDb.collection('integrationLogs').doc(logId).set({
         id: logId,
         applicationId: log.applicationId,
         citizenId: log.citizenId,
@@ -259,19 +303,13 @@ export class TwilioMessagingService {
         twilioMessageSid: log.twilioMessageSid,
         status: log.status,
         errorReason: log.errorReason || null,
-        createdAt: serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
-
-      assertNoUndefinedValues(payload, `integrationLogs/${logId}`);
-      await setDoc(logRef, payload);
     } catch (err: any) {
       console.warn('[TwilioService] Warning saving integration audit log:', err.message);
     }
   }
 
-  /**
-   * Creates an in-app notification in the notifications collection
-   */
   private async createInAppNotification(opts: {
     citizenId: string;
     applicationId: string;
@@ -283,9 +321,7 @@ export class TwilioMessagingService {
   }) {
     try {
       const { title, message } = getInAppNotificationDetails(opts.eventType, opts.applicationNumber, opts.extra);
-      const notifRef = doc(collection(db, 'notifications'));
-
-      const payload = sanitizeFirestorePayload({
+      await adminDb.collection('notifications').add({
         userId: opts.citizenId,
         applicationId: opts.applicationId,
         applicationNumber: opts.applicationNumber,
@@ -297,19 +333,13 @@ export class TwilioMessagingService {
         smsStatus: opts.smsStatus,
         twilioMessageSid: opts.twilioMessageSid || null,
         read: false,
-        createdAt: serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
-
-      assertNoUndefinedValues(payload, 'notifications');
-      await setDoc(notifRef, payload);
     } catch (err: any) {
       console.warn('[TwilioService] Warning creating in-app notification:', err.message);
     }
   }
 
-  /**
-   * Admin Health Endpoint: Get Twilio status and Programmable Messaging metrics
-   */
   async getTwilioHealth() {
     const config = this.getConfig();
 
@@ -321,11 +351,12 @@ export class TwilioMessagingService {
     startOfToday.setHours(0, 0, 0, 0);
 
     try {
-      const logsRef = collection(db, 'integrationLogs');
-      const q = query(logsRef, orderBy('createdAt', 'desc'), limit(50));
-      const snap = await getDocs(q);
+      const snap = await adminDb.collection('integrationLogs')
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get();
 
-      snap.forEach((d) => {
+      snap.forEach((d: any) => {
         const data = d.data();
         if (data.isDemo === true || data.recordType === 'DEMO') return;
         const createdAtDate = data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : null);
@@ -355,7 +386,7 @@ export class TwilioMessagingService {
       enabled: config.enabled,
       connected: config.isConfigured || !config.enabled,
       messagingServiceConfigured: !!config.messagingServiceSid,
-      verifyServiceConfigured: false, // Twilio Verify is intentionally not used
+      verifyServiceConfigured: false,
       smsSentToday,
       smsFailedToday,
       recentLogs,
