@@ -9,6 +9,7 @@ import {
 import { ref, uploadBytes, deleteObject } from 'firebase/storage';
 import { ResidentProfile, UserProfile } from '../types';
 import { api } from './api';
+import { validateAadhaar, maskAadhaar } from '../lib/aadhaar';
 
 /**
  * Calculates accurate age from a Date of Birth string (YYYY-MM-DD).
@@ -277,6 +278,27 @@ export const residentProfileService = {
     // Format PAN uppercase
     if (profileData.identity?.panCardNumber) {
       profileData.identity.panCardNumber = profileData.identity.panCardNumber.trim().toUpperCase();
+    }
+
+    // Aadhaar Verhoeff validation and masking (DPDP & Aadhaar Act compliance)
+    if (profileData.identity?.aadhaarReference) {
+      const rawAadhaar = profileData.identity.aadhaarReference.replace(/[\s-]/g, '');
+      if (/^\d{12}$/.test(rawAadhaar)) {
+        const validation = validateAadhaar(rawAadhaar);
+        if (!validation.isValid) {
+          throw new Error(validation.error || 'Invalid Aadhaar number format or checksum.');
+        }
+        profileData.identity.aadhaarLast4 = rawAadhaar.slice(-4);
+        profileData.identity.aadhaarReference = maskAadhaar(rawAadhaar);
+      } else if (!rawAadhaar.startsWith('XXXX-XXXX-') && !rawAadhaar.startsWith('XXXXXXXX')) {
+        // If not a 12-digit number and not already masked, validate
+        if (rawAadhaar.length === 12) {
+          const validation = validateAadhaar(rawAadhaar);
+          if (!validation.isValid) {
+            throw new Error(validation.error || 'Invalid Aadhaar number.');
+          }
+        }
+      }
     }
 
     // Calculate completion metrics

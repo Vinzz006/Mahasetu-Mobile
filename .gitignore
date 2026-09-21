@@ -1,23 +1,42 @@
 # Dependencies
 node_modules/
+package-lock.json.backup
 
-# Expo
+# Expo & Metro
 .expo/
 dist/
 web-build/
 
-# Native builds
+# Native builds & Signing keys
 *.orig.*
 *.jks
 *.p8
 *.p12
 *.key
+*.pem
 *.mobileprovision
 
+# Secret files & Service accounts
+*serviceAccount*.json
+*credentials*.json
+serviceAccount.json
+firebase-service-account.json
+
 # Environment Variables
-.env
-.env.local
-.env.*.local
+.env*
+!.env.example
+
+# Logs & Debugging artifacts
+*.log
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# Scratch & Temporary local data
+scratch/
+backend/data/
+.data/
+.firebase/
 
 # macOS / Windows
 .DS_Store

@@ -519,8 +519,8 @@ assert(!twilioServiceMobile.includes('TWILIO_ACCOUNT_SID'), '13.3 Mobile twilioS
 
 // Phone normalization & masking unit tests
 console.log('\n[Test Suite 14: Normalization & Masking Invariants]');
-assert(normalizePhoneNumber('9876543210') === '+919876543210', '14.1 10-digit number normalizes to +919876543210');
-assert(normalizePhoneNumber('+919876543210') === '+919876543210', '14.2 E.164 number preserved');
+assert(normalizePhoneNumber('9876543210').normalized === '+919876543210', '14.1 10-digit number normalizes to +919876543210');
+assert(normalizePhoneNumber('+919876543210').normalized === '+919876543210', '14.2 E.164 number preserved');
 assert(maskPhoneNumber('+919876543210') === '+9198******10', '14.3 +919876543210 masks to +9198******10');
 assert(maskPhoneNumber('') === '***', '14.4 Empty phone number masks safely');
 

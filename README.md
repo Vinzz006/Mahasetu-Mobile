@@ -32,24 +32,32 @@ The mobile application is a first-class client of the **MahaSetu Platform**, int
 
 ---
 
-## 👥 Built-in Official Demo Accounts & Credentials
+## 👥 Official Demo Personas (Development & Local Emulator Only)
 
-Sign in directly on the mobile app or web portal using the pre-configured demo credentials below:
+> **Security Note:** Demo persona quick-switching is strictly disabled in production releases (`__DEV__ === false`) and requires `EXPO_PUBLIC_DEMO_MODE=true`. Demo passwords are never hardcoded or stored in the repository.
 
-**Demo Password for all accounts**: `MahaSetu@2026!`
+To populate demo personas in your local Firebase Emulator for development:
 
-| Role | Demo Name | Email Identifier | Password | Purpose / Scope |
-| :--- | :--- | :--- | :--- | :--- |
-| **Citizen** | Priya Sharma | `citizen.priya@mahasetu.gov.in` | `MahaSetu@2026!` | Self-service, Submit Once, 5-party tracking, Consent management |
-| **Citizen** | Rahul Verma | `citizen.rahul@mahasetu.gov.in` | `MahaSetu@2026!` | Higher education benefit applicant |
-| **Citizen** | Sneha Patil | `citizen.sneha@mahasetu.gov.in` | `MahaSetu@2026!` | Livelihood assistance applicant |
-| **Citizen** | Pooja Kulkarni | `citizen.pooja@mahasetu.gov.in` | `MahaSetu@2026!` | Social welfare applicant |
-| **Dept Officer** | Ramesh Kumar | `officer.dept_a@mahasetu.gov.in` | `MahaSetu@2026!` | **DEPT_A** — Revenue & Civil Supplies certification |
-| **Dept Officer** | Suresh Joshi | `officer.dept_b@mahasetu.gov.in` | `MahaSetu@2026!` | **DEPT_B** — Social Welfare & Inclusion certification |
-| **Dept Officer** | Mahesh Deshmukh | `officer.dept_c@mahasetu.gov.in` | `MahaSetu@2026!` | **DEPT_C** — Labour & Employment Welfare certification |
-| **Admin** | Anil Shinde | `admin.onboarding@mahasetu.gov.in` | `MahaSetu@2026!` | User onboarding approval, Citizen identity queue, 5/5 matrix |
-| **Admin** | Vijay Patil | `admin.system@mahasetu.gov.in` | `MahaSetu@2026!` | System health, Twilio monitoring, Canonical exchanges |
-| **Auditor** | Neha Deshpande | `auditor.compliance@mahasetu.gov.in` | `MahaSetu@2026!` | Independent compliance oversight, 5th verification gate |
+```bash
+# 1. Set development password in your local .env
+EXPO_PUBLIC_DEMO_PASSWORD=your_secure_dev_password
+
+# 2. Run seed script against local Firebase Emulator
+npx tsx scripts/seed-firebase-project.ts
+```
+
+| Role | Name | Identifier | Purpose / Scope |
+| :--- | :--- | :--- | :--- |
+| **Citizen** | Anusha G. | `anusha@mahasetu.gov.in` | Self-service, Submit Once, 5-party tracking, Consent management |
+| **Citizen** | Muthumayil M. | `muthumayil@mahasetu.gov.in` | Higher education benefit applicant |
+| **Citizen** | Akshita S S | `akshita@mahasetu.gov.in` | Livelihood assistance applicant |
+| **Citizen** | Kanimozhi N | `kanimozhi@mahasetu.gov.in` | Social welfare applicant |
+| **Dept Officer** | Vinesh S | `vinesh.dept_a@mahasetu.gov.in` | **DEPT_A** — Revenue & Civil Supplies certification |
+| **Dept Officer** | Sai Sharavan G | `sai.dept_b@mahasetu.gov.in` | **DEPT_B** — Social Welfare & Inclusion certification |
+| **Dept Officer** | Omesh Kaarthik S U | `omesh.dept_c@mahasetu.gov.in` | **DEPT_C** — Labour & Employment Welfare certification |
+| **Admin** | Tammu Vedesh Kumar | `tammu.admin@mahasetu.gov.in` | User onboarding approval, Citizen identity queue, 5/5 matrix |
+| **Admin** | Shanmugam K | `shanmugam.admin@mahasetu.gov.in` | System health, Twilio monitoring, Canonical exchanges |
+| **Auditor** | Tanushri S | `tanushri.auditor@mahasetu.gov.in` | Independent compliance oversight, 5th verification gate |
 
 ---
 

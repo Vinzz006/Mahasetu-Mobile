@@ -7,7 +7,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "backend": "ts-node backend/src/server.ts"
+    "backend": "ts-node backend/src/server.ts",
+    "test:backend": "node -r ts-node/register --test backend/src/__tests__/*.test.ts",
+    "test:rules": "firebase-tools emulators:exec --only firestore run-rules-tests.cmd"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",
@@ -22,6 +24,7 @@
     "expo-router": "~4.0.17",
     "expo-status-bar": "~2.0.1",
     "firebase": "^10.14.1",
+    "firebase-admin": "^14.4.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.9",
@@ -31,9 +34,15 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "@types/node": "^26.6.1",
     "@types/react": "~18.3.12",
+    "dotenv": "^18.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "tar": "^7.4.3"
   },
   "private": true
 }

@@ -4,144 +4,220 @@
  *
  * Implements server-side application submission, 5/5 verification stage workflow,
  * statutory citizen SMS notifications via Twilio Programmable Messaging,
- * duplicate prevention, and zero-leak credential isolation.
+ * duplicate prevention, zero-leak credential isolation, and strict claims-based authorization.
  */
 
 import * as dotenv from 'dotenv';
 dotenv.config();
 
 import * as http from 'http';
-import { auth, db, sanitizeFirestorePayload, assertNoUndefinedValues } from '../../lib/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  serverTimestamp,
-} from 'firebase/firestore';
+import * as crypto from 'crypto';
+import { adminAuth, adminDb, FieldValue } from './lib/firebaseAdmin';
+import { sanitizeFirestorePayload, assertNoUndefinedValues } from './lib/firestoreUtils';
 import { twilioBackendService } from './notifications/twilio.service';
 import { APPLICATION_EVENTS, getSmsMessage } from './notifications/events';
 import { geminiService } from './services/gemini.service';
+import { logger } from './lib/logger';
+import { verifyAppCheck } from './lib/appCheck';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
+const HOST = process.env.HOST || '127.0.0.1';
+const MAX_BODY_BYTES = 100 * 1024; // 100 KB limit
 
-/**
- * Initializes backend administrative Firebase Auth session so server-side queries
- * and verification workflow operations pass Firestore security rules.
- * Requires ADMIN_SERVICE_EMAIL and ADMIN_SERVICE_PASSWORD in .env
- */
-async function initBackendAdminAuth() {
-  const email = process.env.ADMIN_SERVICE_EMAIL;
-  const password = process.env.ADMIN_SERVICE_PASSWORD;
-
-  if (!email || !password) {
-    console.warn(
-      '[MahaSetu Backend] WARNING: ADMIN_SERVICE_EMAIL and ADMIN_SERVICE_PASSWORD are not set in .env. ' +
-      'The backend will run without an authenticated admin session. ' +
-      'Set these environment variables with a real admin account credentials to enable server-side Firestore access.'
-    );
-    return;
-  }
-
-  try {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    console.log(`[MahaSetu Backend] Trusted admin session established: ${cred.user.email} (${cred.user.uid})`);
-  } catch (err: any) {
-    console.warn('[MahaSetu Backend] Admin auth warning:', err.message);
-  }
+export interface VerifiedUserClaims {
+  uid: string;
+  email?: string;
+  role?: string | null;
+  departmentId?: string | null;
+  status?: string | null;
+  emailVerified?: boolean;
 }
+
+// In-memory rate limiter per IP and per UID
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+const ipRateLimits = new Map<string, RateLimitEntry>();
+const uidRateLimits = new Map<string, RateLimitEntry>();
+
+function checkRateLimit(key: string, map: Map<string, RateLimitEntry>, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = map.get(key);
+  if (!entry || now > entry.resetTime) {
+    map.set(key, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+  if (entry.count >= limit) {
+    return false;
+  }
+  entry.count++;
+  return true;
+}
+
+// Periodic cleanup of rate limit maps every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of ipRateLimits.entries()) {
+    if (now > v.resetTime) ipRateLimits.delete(k);
+  }
+  for (const [k, v] of uidRateLimits.entries()) {
+    if (now > v.resetTime) uidRateLimits.delete(k);
+  }
+}, 5 * 60 * 1000).unref();
 
 /**
  * Authenticates Firebase ID Token passed in Authorization: Bearer <token>
- * Uses Google Identity Toolkit API to verify token validity, expiration,
- * and extract the authentic Firebase Auth UID. Fallback to JWT payload verification.
+ * Cryptographically verifies token signature, expiration, and revocation status
+ * using Firebase Admin SDK.
  */
-async function verifyFirebaseToken(authHeader: string | undefined): Promise<{ uid: string; email?: string } | null> {
+export async function verifyFirebaseToken(authHeader: string | undefined): Promise<VerifiedUserClaims | null> {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
   }
   const token = authHeader.substring(7).trim();
   if (!token) return null;
 
-  // 1. Verify via Google Identity Toolkit lookup endpoint
-  const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'AIzaSyAj6AAYqX9EN8eLuJiRErVXd74xZgdsucc';
   try {
-    const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken: token }),
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      if (data.users && data.users.length > 0) {
-        return { uid: data.users[0].localId, email: data.users[0].email };
-      }
-    }
-  } catch (e: any) {
-    console.warn('[Server] Identity Toolkit token verification warning:', e.message);
+    const decoded = await adminAuth.verifyIdToken(token, true); // checkRevoked = true
+    return {
+      uid: decoded.uid,
+      email: decoded.email,
+      role: (decoded.role as string) || null,
+      departmentId: (decoded.departmentId as string) || null,
+      status: (decoded.status as string) || null,
+      emailVerified: !!decoded.email_verified,
+    };
+  } catch (err: any) {
+    // Signature invalid, expired, revoked, or malformed
+    return null;
   }
-
-  // 2. Decode JWT claims fallback if token is signed for this project
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payloadJson = Buffer.from(parts[1], 'base64').toString('utf8');
-      const payload = JSON.parse(payloadJson);
-      const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'mahasetu-mobile-app';
-      const nowSec = Math.floor(Date.now() / 1000);
-      if (
-        payload.aud === projectId &&
-        payload.iss === `https://securetoken.google.com/${projectId}` &&
-        payload.exp > nowSec &&
-        payload.sub
-      ) {
-        return { uid: payload.sub, email: payload.email };
-      }
-    }
-  } catch (jwtErr: any) {
-    console.warn('[Server] JWT claim fallback error:', jwtErr.message);
-  }
-
-  return null;
 }
 
+const ALLOWED_ORIGINS = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim().toLowerCase())
+  : [];
 
-function setCorsHeaders(res: http.ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+function setSecurityHeaders(req: http.IncomingMessage, res: http.ServerResponse) {
+  const origin = req.headers.origin;
+  if (origin) {
+    const cleanOrigin = origin.trim().toLowerCase();
+    if (ALLOWED_ORIGINS.length > 0 && ALLOWED_ORIGINS.includes(cleanOrigin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    } else if (process.env.NODE_ENV !== 'production') {
+      if (
+        cleanOrigin.startsWith('http://localhost') ||
+        cleanOrigin.startsWith('http://127.0.0.1') ||
+        cleanOrigin.startsWith('http://10.') ||
+        cleanOrigin.startsWith('http://192.168.')
+      ) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+      }
+    }
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('X-Frame-Options', 'DENY');
+
+  const isTls = (req.socket as any).encrypted || req.headers['x-forwarded-proto'] === 'https';
+  if (isTls) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
 }
 
 function sendJson(res: http.ServerResponse, statusCode: number, data: any) {
-  setCorsHeaders(res);
   res.writeHead(statusCode, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(data));
 }
 
-function parseJsonBody(req: http.IncomingMessage): Promise<any> {
+function sendError(
+  res: http.ServerResponse,
+  statusCode: number,
+  userMessage: string,
+  requestId: string,
+  internalDetail?: any
+) {
+  if (internalDetail) {
+    console.error(`[Server Error][ReqId: ${requestId}] ${statusCode} - ${userMessage}:`, internalDetail);
+  }
+  sendJson(res, statusCode, {
+    error: userMessage,
+    requestId,
+  });
+}
+
+function parseJsonBody(req: http.IncomingMessage): Promise<{ ok: boolean; data?: any; error?: string }> {
   return new Promise((resolve) => {
     let body = '';
+    let receivedBytes = 0;
+
     req.on('data', (chunk) => {
+      receivedBytes += chunk.length;
+      if (receivedBytes > MAX_BODY_BYTES) {
+        req.destroy();
+        resolve({ ok: false, error: 'PAYLOAD_TOO_LARGE' });
+        return;
+      }
       body += chunk.toString();
     });
+
     req.on('end', () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch {
-        resolve({});
+      if (!body || body.trim() === '') {
+        resolve({ ok: true, data: {} });
+        return;
       }
+      try {
+        const parsed = JSON.parse(body);
+        resolve({ ok: true, data: parsed });
+      } catch {
+        resolve({ ok: false, error: 'INVALID_JSON' });
+      }
+    });
+
+    req.on('error', (err) => {
+      resolve({ ok: false, error: err.message });
     });
   });
 }
 
+async function requireAuth(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  requestId: string
+): Promise<VerifiedUserClaims | null> {
+  const claims = await verifyFirebaseToken(req.headers.authorization);
+  if (!claims) {
+    sendError(res, 401, 'Unauthorized: Valid authentication token required', requestId);
+    return null;
+  }
+  return claims;
+}
+
+function requireRole(
+  claims: VerifiedUserClaims,
+  allowedRoles: string[],
+  res: http.ServerResponse,
+  requestId: string
+): boolean {
+  const role = (claims.role || '').toUpperCase();
+  const upperAllowed = allowedRoles.map((r) => r.toUpperCase());
+  if (!role || !upperAllowed.includes(role)) {
+    sendError(res, 403, 'Forbidden: Insufficient role privileges for this action', requestId);
+    return false;
+  }
+  return true;
+}
+
 export function createBackendServer(): http.Server {
   const server = http.createServer(async (req, res) => {
-    setCorsHeaders(res);
+    const requestId = crypto.randomUUID();
+    setSecurityHeaders(req, res);
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -149,24 +225,111 @@ export function createBackendServer(): http.Server {
       return;
     }
 
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+    if (!checkRateLimit(clientIp, ipRateLimits, 120, 60 * 1000)) {
+      sendError(res, 429, 'Too many requests from this IP. Please try again later.', requestId);
+      return;
+    }
+
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost:8000'}`);
     const pathname = url.pathname;
 
     try {
-      // 1. Submit Application
-      if (req.method === 'POST' && pathname === '/api/v1/applications') {
-        const payload = await parseJsonBody(req);
-        const appId = payload.id || `app_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const appNumber = payload.applicationNumber || `MS-${Math.floor(10000 + Math.random() * 90000)}`;
-        const citizenId = payload.citizenId || payload.citizenUid;
+      // 0. Public Health Check (No Auth Required)
+      if (req.method === 'GET' && (pathname === '/api/v1/health' || pathname === '/health')) {
+        sendJson(res, 200, { status: 'healthy', timestamp: new Date().toISOString() });
+        return;
+      }
 
-        const appRef = doc(db, 'applications', appId);
+      // 0b. Firebase App Check Token Validation
+      const appCheckPassed = await verifyAppCheck(req, res, requestId);
+      if (!appCheckPassed) return;
+
+      // Read Body for write methods
+      let body: any = {};
+      if (['POST', 'PUT', 'PATCH'].includes(req.method || '')) {
+        const bodyResult = await parseJsonBody(req);
+        if (!bodyResult.ok) {
+          if (bodyResult.error === 'PAYLOAD_TOO_LARGE') {
+            sendError(res, 413, 'Payload too large. Maximum size is 100 KB.', requestId);
+            return;
+          }
+          sendError(res, 400, 'Invalid JSON payload in request body.', requestId);
+          return;
+        }
+        body = bodyResult.data || {};
+      }
+
+      // ==========================================
+      // 1. Submit Application (Approved Citizen Only)
+      // ==========================================
+      if (req.method === 'POST' && pathname === '/api/v1/applications') {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+
+        if (!checkRateLimit(claims.uid, uidRateLimits, 60, 60 * 1000)) {
+          sendError(res, 429, 'Rate limit exceeded for your account.', requestId);
+          return;
+        }
+
+        const roleUpper = (claims.role || '').toUpperCase();
+        if (roleUpper !== 'CITIZEN') {
+          sendError(res, 403, 'Forbidden: Only citizens may create applications.', requestId);
+          return;
+        }
+        if (claims.status && claims.status !== 'APPROVED') {
+          sendError(res, 403, 'Forbidden: Citizen account must be approved to create applications.', requestId);
+          return;
+        }
+
+        // Generate authoritative server-controlled IDs and application number
+        const appId = `app_${crypto.randomUUID()}`;
+        const appNumber = `MS-${crypto.randomInt(10000, 99999)}`;
+        const citizenId = claims.uid;
+
+        // Strictly validate required serviceId
+        if (typeof body.serviceId !== 'string' || !body.serviceId.trim()) {
+          sendError(res, 400, 'Field "serviceId" is required and must be a non-empty string.', requestId);
+          return;
+        }
+        const serviceId = body.serviceId.trim();
+        if (!/^[a-zA-Z0-9_-]{2,100}$/.test(serviceId)) {
+          sendError(res, 400, 'Invalid "serviceId" format: must be alphanumeric characters or underscores (2-100 chars).', requestId);
+          return;
+        }
+
+        const serviceName = typeof body.serviceName === 'string' ? body.serviceName.substring(0, 200) : 'General Citizen Service';
+        const category = typeof body.category === 'string' ? body.category.substring(0, 100) : 'GENERAL';
+
+        // Validate and sanitize formData fields
+        const sanitizedFormData: Record<string, any> = {};
+        if (body.formData && typeof body.formData === 'object' && !Array.isArray(body.formData)) {
+          for (const [k, v] of Object.entries(body.formData).slice(0, 50)) {
+            if (/^[a-zA-Z0-9_.-]{1,60}$/.test(k)) {
+              if (typeof v === 'string') {
+                sanitizedFormData[k] = v.substring(0, 2000);
+              } else if (typeof v === 'number' || typeof v === 'boolean') {
+                sanitizedFormData[k] = v;
+              }
+            }
+          }
+        }
+        const formData = sanitizedFormData;
+        const documents = Array.isArray(body.documents) ? body.documents.slice(0, 20) : [];
+
+        const batch = adminDb.batch();
+        const appRef = adminDb.collection('applications').doc(appId);
+
         const appData = sanitizeFirestorePayload({
-          ...payload,
           id: appId,
           applicationNumber: appNumber,
           citizenId,
           citizenUid: citizenId,
+          serviceId,
+          serviceName,
+          category,
+          formData,
+          documents,
           status: 'APPLICATION_SUBMITTED',
           verificationSummary: {
             totalRequired: 5,
@@ -178,14 +341,15 @@ export function createBackendServer(): http.Server {
             completed: 0,
             required: 5,
           },
+          submissionSmsSent: true,
           finalCompletionSmsSent: false,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
         assertNoUndefinedValues(appData, `applications/${appId}`);
-        await setDoc(appRef, appData);
+        batch.create(appRef, appData);
 
-        // Initialize 5 designated verification records
+        // Atomically initialize the 5 verification slots in the same batch
         const slots = [
           { key: 'DEPARTMENT_A', sfx: 'department_a', dept: 'DEPARTMENT_A', name: 'Revenue & Civil Supplies' },
           { key: 'DEPARTMENT_B', sfx: 'department_b', dept: 'DEPARTMENT_B', name: 'Social Welfare & Inclusion' },
@@ -196,10 +360,12 @@ export function createBackendServer(): http.Server {
 
         for (const slot of slots) {
           const sId = `${appId}_${slot.sfx}`;
-          const sRef = doc(db, 'applicationVerifications', sId);
+          const sRef = adminDb.collection('applicationVerifications').doc(sId);
           const sPayload = sanitizeFirestorePayload({
             id: sId,
             applicationId: appId,
+            citizenId,
+            citizenUid: citizenId,
             verifierKey: slot.key,
             verifierName: slot.name,
             verifierRole: slot.key,
@@ -208,14 +374,16 @@ export function createBackendServer(): http.Server {
             comments: null,
             verifiedAt: null,
             rejectedAt: null,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           assertNoUndefinedValues(sPayload, `applicationVerifications/${sId}`);
-          await setDoc(sRef, sPayload);
+          batch.create(sRef, sPayload);
         }
 
-        // Trigger APPLICATION_SUBMITTED notification & SMS via Twilio
+        await batch.commit();
+
+        // Safe background SMS dispatch
         try {
           await twilioBackendService.sendApplicationStatusSms({
             applicationId: appId,
@@ -224,88 +392,231 @@ export function createBackendServer(): http.Server {
             eventType: APPLICATION_EVENTS.APPLICATION_SUBMITTED,
           });
         } catch (smsError: any) {
-          console.warn('[Server] Twilio side-effect warning on submit:', smsError.message);
+          console.warn('[Server] Twilio SMS dispatch warning on application create:', smsError.message);
         }
 
-        sendJson(res, 201, { success: true, application: appData });
+        sendJson(res, 201, {
+          success: true,
+          applicationId: appId,
+          applicationNumber: appNumber,
+          status: 'APPLICATION_SUBMITTED',
+        });
         return;
       }
 
+      // ==========================================
       // 2. Secondary Application Submit Trigger
+      // ==========================================
       if (req.method === 'POST' && pathname.match(/^\/api\/v1\/applications\/([^/]+)\/submit$/)) {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+
         const matches = pathname.match(/^\/api\/v1\/applications\/([^/]+)\/submit$/);
         const appId = matches![1];
-        const payload = await parseJsonBody(req);
 
-        const appSnap = await getDoc(doc(db, 'applications', appId));
-        if (appSnap.exists()) {
-          const appData = appSnap.data();
-          const citizenId = payload.citizenId || appData.citizenId || appData.citizenUid;
+        const appRef = adminDb.collection('applications').doc(appId);
+        const appSnap = await appRef.get();
 
+        if (!appSnap.exists) {
+          sendError(res, 404, 'Application not found', requestId);
+          return;
+        }
+
+        const appData = appSnap.data()!;
+        if (appData.citizenId !== claims.uid && appData.citizenUid !== claims.uid) {
+          sendError(res, 403, 'Forbidden: You do not own this application', requestId);
+          return;
+        }
+
+        // Idempotency check: do not re-send submission SMS
+        if (appData.status === 'APPLICATION_SUBMITTED' || appData.submissionSmsSent === true) {
+          sendJson(res, 200, {
+            success: true,
+            message: 'Application already submitted. No duplicate SMS dispatched.',
+            idempotent: true,
+          });
+          return;
+        }
+
+        await appRef.update({
+          status: 'APPLICATION_SUBMITTED',
+          submissionSmsSent: true,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        try {
           await twilioBackendService.sendApplicationStatusSms({
             applicationId: appId,
             applicationNumber: appData.applicationNumber || appId,
-            citizenId,
+            citizenId: claims.uid,
             eventType: APPLICATION_EVENTS.APPLICATION_SUBMITTED,
           });
+        } catch (smsErr: any) {
+          console.warn('[Server] Twilio submit SMS warning:', smsErr.message);
         }
 
         sendJson(res, 200, { success: true });
         return;
       }
 
-      // 3. Verify Application Stage
+      // ==========================================
+      // 3. Verify Application Stage (Officers, Admin, Auditor)
+      // ==========================================
       if (req.method === 'POST' && pathname.match(/^\/api\/v1\/applications\/([^/]+)\/verify$/)) {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+
         const matches = pathname.match(/^\/api\/v1\/applications\/([^/]+)\/verify$/);
         const appId = matches![1];
-        const payload = await parseJsonBody(req);
 
-        const appRef = doc(db, 'applications', appId);
-        const appSnap = await getDoc(appRef);
+        // Derive verification slot SOLELY from caller claims (ignore any body verifierRole / departmentId)
+        const roleUpper = (claims.role || '').toUpperCase();
+        const deptUpper = (claims.departmentId || '').toUpperCase();
 
-        if (!appSnap.exists()) {
-          sendJson(res, 404, { error: 'Application not found' });
+        let slotKey: string | null = null;
+        let docSuffix: string | null = null;
+        let deptName: string | null = null;
+        let eventType: string = APPLICATION_EVENTS.DEPARTMENT_A_VERIFIED;
+
+        if (roleUpper === 'DEPARTMENT_A' || deptUpper === 'DEPARTMENT_A' || deptUpper === 'DEPT_A') {
+          slotKey = 'DEPARTMENT_A';
+          docSuffix = 'department_a';
+          deptName = 'Department A';
+          eventType = APPLICATION_EVENTS.DEPARTMENT_A_VERIFIED;
+        } else if (roleUpper === 'DEPARTMENT_B' || deptUpper === 'DEPARTMENT_B' || deptUpper === 'DEPT_B') {
+          slotKey = 'DEPARTMENT_B';
+          docSuffix = 'department_b';
+          deptName = 'Department B';
+          eventType = APPLICATION_EVENTS.DEPARTMENT_B_VERIFIED;
+        } else if (roleUpper === 'DEPARTMENT_C' || deptUpper === 'DEPARTMENT_C' || deptUpper === 'DEPT_C') {
+          slotKey = 'DEPARTMENT_C';
+          docSuffix = 'department_c';
+          deptName = 'Department C';
+          eventType = APPLICATION_EVENTS.DEPARTMENT_C_VERIFIED;
+        } else if (roleUpper === 'ADMIN') {
+          slotKey = 'ADMIN';
+          docSuffix = 'admin';
+          deptName = 'State Administration';
+          eventType = APPLICATION_EVENTS.ADMIN_VERIFIED;
+        } else if (roleUpper === 'AUDITOR') {
+          slotKey = 'AUDITOR';
+          docSuffix = 'auditor';
+          deptName = 'Independent Compliance Auditor';
+          eventType = APPLICATION_EVENTS.AUDITOR_VERIFIED;
+        } else {
+          sendError(res, 403, 'Forbidden: Officer, Admin, or Auditor authorization required.', requestId);
           return;
         }
 
-        const appData = appSnap.data();
-        const citizenId = appData.citizenId || appData.citizenUid;
-        const appNumber = appData.applicationNumber || appId;
-
-        // Determine verifier role/department
-        const verifierRole = payload.verifierRole || 'DEPARTMENT_A';
-        const departmentId = payload.departmentId || 'DEPARTMENT_A';
-        const comments = payload.comments || 'Verified in compliance with MahaSetu guidelines';
-
-        let docSuffix = 'department_a';
-        let eventType: string = APPLICATION_EVENTS.DEPARTMENT_A_VERIFIED;
-        let deptName = 'Department A';
-
-        const upperRole = String(verifierRole).toUpperCase();
-        if (upperRole === 'DEPARTMENT_B' || departmentId === 'DEPARTMENT_B' || departmentId === 'DEPT_B') {
-          docSuffix = 'department_b';
-          eventType = APPLICATION_EVENTS.DEPARTMENT_B_VERIFIED;
-          deptName = 'Department B';
-        } else if (upperRole === 'DEPARTMENT_C' || departmentId === 'DEPARTMENT_C' || departmentId === 'DEPT_C') {
-          docSuffix = 'department_c';
-          eventType = APPLICATION_EVENTS.DEPARTMENT_C_VERIFIED;
-          deptName = 'Department C';
-        } else if (upperRole === 'ADMIN') {
-          docSuffix = 'admin';
-          eventType = APPLICATION_EVENTS.ADMIN_VERIFIED;
-          deptName = 'State Administration';
-        } else if (upperRole === 'AUDITOR') {
-          docSuffix = 'auditor';
-          eventType = APPLICATION_EVENTS.AUDITOR_VERIFIED;
-          deptName = 'Independent Auditor';
+        if (body.status && body.status !== 'VERIFIED' && body.status !== 'REJECTED') {
+          sendError(res, 400, 'Invalid status: must be either VERIFIED or REJECTED.', requestId);
+          return;
         }
 
-        const vDocId = `${appId}_${docSuffix}`;
-        const vRef = doc(db, 'applicationVerifications', vDocId);
-        const vSnap = await getDoc(vRef);
+        const comments = typeof body.comments === 'string'
+          ? body.comments.substring(0, 1000).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim()
+          : 'Verified in compliance with MahaSetu guidelines';
 
-        // Duplicate prevention: If already verified, exit without sending duplicate SMS
-        if (vSnap.exists() && vSnap.data().status === 'VERIFIED') {
+        const appRef = adminDb.collection('applications').doc(appId);
+        const vDocId = `${appId}_${docSuffix}`;
+        const vRef = adminDb.collection('applicationVerifications').doc(vDocId);
+
+        // Execute in a Firestore transaction for atomic slot decision and recount
+        const txResult = await adminDb.runTransaction(async (transaction) => {
+          const appDoc = await transaction.get(appRef);
+          if (!appDoc.exists) {
+            return { notFound: true };
+          }
+          const appData = appDoc.data()!;
+          const vDoc = await transaction.get(vRef);
+
+          if (vDoc.exists) {
+            const vData = vDoc.data()!;
+            if (vData.status === 'VERIFIED') {
+              return { duplicate: true, appData };
+            }
+            if (vData.status === 'REJECTED') {
+              return { rejected: true, appData };
+            }
+          }
+
+          transaction.set(
+            vRef,
+            {
+              id: vDocId,
+              applicationId: appId,
+              citizenId: appData.citizenId || appData.citizenUid,
+              citizenUid: appData.citizenUid || appData.citizenId,
+              verifierKey: slotKey,
+              verifierRole: slotKey,
+              verifierUid: claims.uid,
+              status: 'VERIFIED',
+              comments,
+              verifiedAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          // Recount the 5 verification slots within the transaction
+          const slotSuffixes = ['department_a', 'department_b', 'department_c', 'admin', 'auditor'];
+          let verifiedCount = 0;
+          let rejectedCount = 0;
+
+          for (const sfx of slotSuffixes) {
+            const sId = `${appId}_${sfx}`;
+            if (sId === vDocId) {
+              verifiedCount++;
+            } else {
+              const sDoc = await transaction.get(adminDb.collection('applicationVerifications').doc(sId));
+              if (sDoc.exists) {
+                const sData = sDoc.data()!;
+                if (sData.status === 'VERIFIED') verifiedCount++;
+                if (sData.status === 'REJECTED') rejectedCount++;
+              }
+            }
+          }
+
+          const isFullyVerified = verifiedCount === 5;
+          const appStatus = isFullyVerified ? 'APPLICATION_VERIFIED' : 'UNDER_VERIFICATION';
+          const shouldSendCompletionSms = isFullyVerified && !appData.finalCompletionSmsSent;
+
+          const appUpdate: any = {
+            'verificationSummary.verifiedCount': verifiedCount,
+            'verificationSummary.rejectedCount': rejectedCount,
+            'verificationSummary.isFullyVerified': isFullyVerified,
+            'verificationProgress.completed': verifiedCount,
+            'verificationProgress.required': 5,
+            status: appStatus,
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+
+          if (isFullyVerified) {
+            appUpdate.completedAt = FieldValue.serverTimestamp();
+            if (shouldSendCompletionSms) {
+              appUpdate.finalCompletionSmsSent = true;
+            }
+          }
+
+          transaction.update(appRef, appUpdate);
+
+          return {
+            success: true,
+            verifiedCount,
+            isFullyVerified,
+            appStatus,
+            shouldSendCompletionSms,
+            citizenId: appData.citizenId || appData.citizenUid,
+            applicationNumber: appData.applicationNumber || appId,
+          };
+        });
+
+        if (txResult.notFound) {
+          sendError(res, 404, 'Application not found', requestId);
+          return;
+        }
+
+        if (txResult.duplicate) {
           sendJson(res, 200, {
             success: true,
             message: 'Application slot already verified. No duplicate SMS sent.',
@@ -314,167 +625,171 @@ export function createBackendServer(): http.Server {
           return;
         }
 
-        // Save verification record
-        const vPayload = sanitizeFirestorePayload({
-          status: 'VERIFIED',
-          comments,
-          verifiedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        assertNoUndefinedValues(vPayload, `applicationVerifications/${vDocId}`);
-        if (vSnap.exists()) {
-          await updateDoc(vRef, vPayload);
-        } else {
-          await setDoc(vRef, {
-            id: vDocId,
-            applicationId: appId,
-            verifierKey: upperRole,
-            verifierRole: upperRole,
-            departmentId: upperRole === 'ADMIN' || upperRole === 'AUDITOR' ? null : departmentId,
-            ...vPayload,
-          });
+        if (txResult.rejected) {
+          sendError(res, 409, 'Application slot has already been rejected and cannot be verified.', requestId);
+          return;
         }
 
-        // Recalculate verification progress across all 5 slots
-        const allVQuery = query(
-          collection(db, 'applicationVerifications'),
-          where('applicationId', '==', appId)
-        );
-        const allVSnap = await getDocs(allVQuery);
-
-        let verifiedCount = 0;
-        let rejectedCount = 0;
-
-        allVSnap.forEach((d) => {
-          const item = d.data();
-          const status = d.id === vDocId ? 'VERIFIED' : item.status;
-          if (status === 'VERIFIED') verifiedCount++;
-          if (status === 'REJECTED') rejectedCount++;
-        });
-
-        const isFullyVerified = verifiedCount === 5;
-        const appStatus = isFullyVerified ? 'APPLICATION_VERIFIED' : 'UNDER_VERIFICATION';
-
-        const appUpdatePayload = sanitizeFirestorePayload({
-          'verificationSummary.verifiedCount': verifiedCount,
-          'verificationSummary.rejectedCount': rejectedCount,
-          'verificationSummary.isFullyVerified': isFullyVerified,
-          'verificationProgress.completed': verifiedCount,
-          'verificationProgress.required': 5,
-          status: appStatus,
-          completedAt: isFullyVerified ? serverTimestamp() : null,
-          updatedAt: serverTimestamp(),
-        });
-        assertNoUndefinedValues(appUpdatePayload, `applications/${appId}`);
-        await updateDoc(appRef, appUpdatePayload);
-
-        // Send SMS to citizen:
-        // For stages 1 through 4: send individual stage SMS
-        // When all 5 stages complete: send exactly ONE final completion SMS
-        if (isFullyVerified) {
-          if (!appData.finalCompletionSmsSent) {
-            await updateDoc(appRef, { finalCompletionSmsSent: true });
-
-            try {
-              await twilioBackendService.sendApplicationStatusSms({
-                applicationId: appId,
-                applicationNumber: appNumber,
-                citizenId,
-                eventType: APPLICATION_EVENTS.AUDITOR_VERIFIED,
-                message: `MAHASETU: Your application ${appNumber} has completed all verification stages.`,
-              });
-            } catch (completionSmsErr: any) {
-              console.warn('[Server] Final completion SMS side-effect failure:', completionSmsErr.message);
-            }
-          }
-        } else {
-          // Send stage SMS (Department A, B, C, or Admin)
+        // Side-effect SMS dispatch based on transaction outcome
+        if (txResult.shouldSendCompletionSms) {
           try {
             await twilioBackendService.sendApplicationStatusSms({
               applicationId: appId,
-              applicationNumber: appNumber,
-              citizenId,
-              eventType,
-              departmentName: deptName,
+              applicationNumber: txResult.applicationNumber,
+              citizenId: txResult.citizenId,
+              eventType: APPLICATION_EVENTS.AUDITOR_VERIFIED,
+              message: `MAHASETU: Your application ${txResult.applicationNumber} has completed all verification stages.`,
             });
           } catch (smsErr: any) {
-            console.warn('[Server] Stage Twilio SMS dispatch failure (safe side-effect):', smsErr.message);
+            console.warn('[Server] Final completion SMS side-effect failure:', smsErr.message);
+          }
+        } else {
+          try {
+            await twilioBackendService.sendApplicationStatusSms({
+              applicationId: appId,
+              applicationNumber: txResult.applicationNumber,
+              citizenId: txResult.citizenId,
+              eventType,
+              departmentName: deptName || undefined,
+            });
+          } catch (smsErr: any) {
+            console.warn('[Server] Stage SMS dispatch failure:', smsErr.message);
           }
         }
 
         sendJson(res, 200, {
           success: true,
-          verifiedCount,
-          isFullyVerified,
-          status: appStatus,
+          verifiedCount: txResult.verifiedCount,
+          isFullyVerified: txResult.isFullyVerified,
+          status: txResult.appStatus,
         });
         return;
       }
 
-      // 4. Reject Application
+      // ==========================================
+      // 4. Reject Application (Officer, Admin, Auditor for their slot)
+      // ==========================================
       if (req.method === 'POST' && pathname.match(/^\/api\/v1\/applications\/([^/]+)\/reject$/)) {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+
         const matches = pathname.match(/^\/api\/v1\/applications\/([^/]+)\/reject$/);
         const appId = matches![1];
-        const payload = await parseJsonBody(req);
 
-        const appRef = doc(db, 'applications', appId);
-        const appSnap = await getDoc(appRef);
+        const roleUpper = (claims.role || '').toUpperCase();
+        const deptUpper = (claims.departmentId || '').toUpperCase();
 
-        if (!appSnap.exists()) {
-          sendJson(res, 404, { error: 'Application not found' });
+        let slotKey: string | null = null;
+        let docSuffix: string | null = null;
+
+        if (roleUpper === 'DEPARTMENT_A' || deptUpper === 'DEPARTMENT_A' || deptUpper === 'DEPT_A') {
+          slotKey = 'DEPARTMENT_A';
+          docSuffix = 'department_a';
+        } else if (roleUpper === 'DEPARTMENT_B' || deptUpper === 'DEPARTMENT_B' || deptUpper === 'DEPT_B') {
+          slotKey = 'DEPARTMENT_B';
+          docSuffix = 'department_b';
+        } else if (roleUpper === 'DEPARTMENT_C' || deptUpper === 'DEPARTMENT_C' || deptUpper === 'DEPT_C') {
+          slotKey = 'DEPARTMENT_C';
+          docSuffix = 'department_c';
+        } else if (roleUpper === 'ADMIN') {
+          slotKey = 'ADMIN';
+          docSuffix = 'admin';
+        } else if (roleUpper === 'AUDITOR') {
+          slotKey = 'AUDITOR';
+          docSuffix = 'auditor';
+        } else {
+          sendError(res, 403, 'Forbidden: Officer, Admin, or Auditor authorization required to reject.', requestId);
           return;
         }
 
-        const appData = appSnap.data();
-        const citizenId = appData.citizenId || appData.citizenUid;
-        const appNumber = appData.applicationNumber || appId;
-        const reason = payload.reason || 'Criteria not met';
+        const reason = typeof body.reason === 'string' && body.reason.trim()
+          ? body.reason.trim().substring(0, 500)
+          : 'Application criteria not met';
 
-        const appUpdate = sanitizeFirestorePayload({
-          status: 'REJECTED',
-          rejectionReason: reason,
-          rejectedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+        const appRef = adminDb.collection('applications').doc(appId);
+        const vDocId = `${appId}_${docSuffix}`;
+        const vRef = adminDb.collection('applicationVerifications').doc(vDocId);
+
+        const txResult = await adminDb.runTransaction(async (transaction) => {
+          const appDoc = await transaction.get(appRef);
+          if (!appDoc.exists) {
+            return { notFound: true };
+          }
+          const appData = appDoc.data()!;
+
+          transaction.set(
+            vRef,
+            {
+              id: vDocId,
+              applicationId: appId,
+              citizenId: appData.citizenId || appData.citizenUid,
+              verifierKey: slotKey,
+              verifierRole: slotKey,
+              rejectedByUid: claims.uid,
+              status: 'REJECTED',
+              rejectionReason: reason,
+              rejectedAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          transaction.update(appRef, {
+            status: 'REJECTED',
+            rejectionReason: reason,
+            rejectedBy: claims.uid,
+            rejectedByRole: slotKey,
+            rejectedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+
+          return {
+            success: true,
+            citizenId: appData.citizenId || appData.citizenUid,
+            applicationNumber: appData.applicationNumber || appId,
+          };
         });
-        assertNoUndefinedValues(appUpdate, `applications/${appId}`);
-        await updateDoc(appRef, appUpdate);
+
+        if (txResult.notFound) {
+          sendError(res, 404, 'Application not found', requestId);
+          return;
+        }
 
         // Send Rejection SMS
         try {
           await twilioBackendService.sendApplicationStatusSms({
             applicationId: appId,
-            applicationNumber: appNumber,
-            citizenId,
+            applicationNumber: txResult.applicationNumber,
+            citizenId: txResult.citizenId,
             eventType: APPLICATION_EVENTS.APPLICATION_REJECTED,
-            message: `MAHASETU: Your application ${appNumber} requires attention. Please open MahaSetu for details.`,
+            message: `MAHASETU: Your application ${txResult.applicationNumber} requires attention. Please open MahaSetu for details.`,
           });
         } catch (smsErr: any) {
-          console.warn('[Server] Rejection Twilio SMS failure (safe side-effect):', smsErr.message);
+          console.warn('[Server] Rejection Twilio SMS failure:', smsErr.message);
         }
 
-        sendJson(res, 200, { success: true });
+        console.log(`[Audit] Application ${appId} rejected by ${claims.uid} (${slotKey}): ${reason}`);
+        sendJson(res, 200, { success: true, message: 'Application rejected.' });
         return;
       }
 
-      // 5. MahaSetu AI Assistant Chat (Gemini API Integration)
+      // ==========================================
+      // 5. AI Assistant Chat (Authenticated Citizen/User)
+      // ==========================================
       if (req.method === 'POST' && pathname === '/api/v1/ai/chat') {
-        const authResult = await verifyFirebaseToken(req.headers.authorization);
-        if (!authResult) {
-          sendJson(res, 401, { error: 'Unauthorized. Valid Firebase authentication token required.' });
-          return;
-        }
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
 
-        const userId = authResult.uid;
+        const userId = claims.uid;
 
         // Retrieve user profile from Firestore users/{userId}
-        let userProfile: any = { role: 'CITIZEN', name: 'Citizen' };
+        let userProfile: any = { role: claims.role || 'CITIZEN', name: 'Citizen' };
         try {
-          const userRef = doc(db, 'users', userId);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists()) {
-            userProfile = userSnap.data();
+          const userSnap = await adminDb.collection('users').doc(userId).get();
+          if (userSnap.exists) {
+            userProfile = userSnap.data()!;
             if (userProfile.status === 'SUSPENDED') {
-              sendJson(res, 403, { error: 'Account suspended. AI Assistant access is denied.' });
+              sendError(res, 403, 'Account suspended. AI Assistant access is denied.', requestId);
               return;
             }
           }
@@ -482,24 +797,27 @@ export function createBackendServer(): http.Server {
           console.warn('[Server] Profile lookup fallback:', uErr.message);
         }
 
-        const payload = await parseJsonBody(req);
-        const message = typeof payload.message === 'string' ? payload.message.trim() : '';
+        const rawMessage = typeof body.message === 'string' ? body.message.trim() : '';
+        const message = rawMessage.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
         if (!message) {
-          sendJson(res, 400, { error: 'Message content is required.' });
+          sendError(res, 400, 'Message content is required.', requestId);
+          return;
+        }
+        if (message.length > 2000) {
+          sendError(res, 400, 'Message exceeds maximum length of 2000 characters.', requestId);
           return;
         }
 
-        if (message.length > 2000) {
-          sendJson(res, 400, { error: 'Message exceeds maximum length of 2000 characters.' });
-          return;
-        }
+        const conversationId = typeof body.conversationId === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(body.conversationId)
+          ? body.conversationId
+          : undefined;
 
         try {
           const chatResult = await geminiService.generateMahaSetuChatResponse({
             userId,
             userRole: userProfile.role,
             message,
-            conversationId: payload.conversationId,
+            conversationId,
             userProfile,
           });
 
@@ -512,22 +830,21 @@ export function createBackendServer(): http.Server {
           return;
         } catch (chatErr: any) {
           if (chatErr.statusCode === 403) {
-            sendJson(res, 403, { error: chatErr.message });
+            sendError(res, 403, chatErr.message, requestId);
             return;
           }
           throw chatErr;
         }
       }
 
+      // ==========================================
       // 6. Get User's Isolated AI Chat History
+      // ==========================================
       if (req.method === 'GET' && pathname === '/api/v1/ai/history') {
-        const authResult = await verifyFirebaseToken(req.headers.authorization);
-        if (!authResult) {
-          sendJson(res, 401, { error: 'Unauthorized. Valid Firebase authentication token required.' });
-          return;
-        }
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
 
-        const userId = authResult.uid;
+        const userId = claims.uid;
         const requestedConvId = url.searchParams.get('conversationId') || undefined;
 
         try {
@@ -535,10 +852,10 @@ export function createBackendServer(): http.Server {
           sendJson(res, 200, history);
         } catch (err: any) {
           if (err.statusCode === 403) {
-            sendJson(res, 403, { error: err.message });
+            sendError(res, 403, err.message, requestId);
             return;
           }
-          sendJson(res, 500, { error: err.message || 'Internal error fetching chat history' });
+          sendError(res, 500, 'Error retrieving chat history.', requestId, err);
         }
         return;
       }
@@ -549,44 +866,43 @@ export function createBackendServer(): http.Server {
 
       // 7a. GET Resident Profile
       if (req.method === 'GET' && pathname === '/api/v1/resident-profile') {
-        const authResult = await verifyFirebaseToken(req.headers.authorization);
-        if (!authResult) {
-          sendJson(res, 401, { error: 'Unauthorized. Valid Firebase authentication token required.' });
-          return;
-        }
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
 
         try {
-          const profileDoc = await getDoc(doc(db, 'residentProfiles', authResult.uid));
-          if (!profileDoc.exists()) {
-            sendJson(res, 404, { error: 'Resident profile not found', userId: authResult.uid });
+          const profileDoc = await adminDb.collection('residentProfiles').doc(claims.uid).get();
+          if (!profileDoc.exists) {
+            sendError(res, 404, 'Resident profile not found', requestId);
             return;
           }
           sendJson(res, 200, profileDoc.data());
         } catch (err: any) {
-          sendJson(res, 500, { error: err.message || 'Failed to fetch resident profile' });
+          sendError(res, 500, 'Failed to fetch resident profile', requestId, err);
         }
         return;
       }
 
       // 7b. POST / Save Resident Profile
       if (req.method === 'POST' && pathname === '/api/v1/resident-profile') {
-        const authResult = await verifyFirebaseToken(req.headers.authorization);
-        if (!authResult) {
-          sendJson(res, 401, { error: 'Unauthorized. Valid Firebase authentication token required.' });
-          return;
-        }
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
 
         try {
-          const payload = await parseJsonBody(req);
-          // Strictly enforce authenticated UID as the document owner
-          payload.userId = authResult.uid;
-          payload.updatedAt = new Date().toISOString();
-          if (!payload.createdAt) {
-            payload.createdAt = new Date().toISOString();
+          // Strictly enforce authenticated UID as document owner
+          body.userId = claims.uid;
+          body.updatedAt = new Date().toISOString();
+          if (!body.createdAt) {
+            body.createdAt = new Date().toISOString();
           }
 
-          const sanitized = sanitizeFirestorePayload(payload);
-          await setDoc(doc(db, 'residentProfiles', authResult.uid), sanitized, { merge: true });
+          // Citizens are NEVER permitted to self-certify identity via profile payload
+          delete body.certificationStatus;
+          delete body.certifiedBy;
+          delete body.certifiedAt;
+          delete body.isVerified;
+
+          const sanitized = sanitizeFirestorePayload(body);
+          await adminDb.collection('residentProfiles').doc(claims.uid).set(sanitized, { merge: true });
 
           sendJson(res, 200, {
             success: true,
@@ -594,22 +910,18 @@ export function createBackendServer(): http.Server {
             profile: sanitized,
           });
         } catch (err: any) {
-          sendJson(res, 500, { error: err.message || 'Failed to save resident profile' });
+          sendError(res, 500, 'Failed to save resident profile', requestId, err);
         }
         return;
       }
 
       // 7c. DELETE Passport Metadata
       if (req.method === 'DELETE' && pathname === '/api/v1/resident-profile/passport') {
-        const authResult = await verifyFirebaseToken(req.headers.authorization);
-        if (!authResult) {
-          sendJson(res, 401, { error: 'Unauthorized. Valid Firebase authentication token required.' });
-          return;
-        }
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
 
         try {
-          const profileRef = doc(db, 'residentProfiles', authResult.uid);
-          await updateDoc(profileRef, {
+          await adminDb.collection('residentProfiles').doc(claims.uid).update({
             'passport.hasPassport': false,
             'passport.documentPath': null,
             'passport.fileName': null,
@@ -623,69 +935,220 @@ export function createBackendServer(): http.Server {
             message: 'Passport document metadata cleared successfully',
           });
         } catch (err: any) {
-          sendJson(res, 500, { error: err.message || 'Failed to clear passport document metadata' });
+          sendError(res, 500, 'Failed to clear passport metadata', requestId, err);
         }
         return;
       }
 
-      // General Health Check
-      if (req.method === 'GET' && (pathname === '/api/v1/health' || pathname === '/health')) {
-        sendJson(res, 200, { status: 'healthy', timestamp: new Date().toISOString() });
+      // ==========================================
+      // 8. Admin Privileged Routes (ADMIN Role Only)
+      // ==========================================
+
+      // 8a. Admin User Approval & Custom Claims Assignment
+      const approveMatch = pathname.match(/^\/api\/v1\/admin\/user-approvals\/([^/]+)\/approve$/);
+      if (req.method === 'POST' && approveMatch) {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
+
+        const targetUid = approveMatch[1];
+        if (targetUid === claims.uid) {
+          sendError(res, 400, 'Forbidden: Self-approval or self-role assignment is prohibited.', requestId);
+          return;
+        }
+
+        const role = typeof body.role === 'string' ? body.role.toUpperCase() : '';
+        const allowedRoles = ['CITIZEN', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'];
+        if (!allowedRoles.includes(role)) {
+          sendError(res, 400, `Invalid role: must be one of ${allowedRoles.join(', ')}`, requestId);
+          return;
+        }
+
+        const isDept = ['DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C'].includes(role);
+        const departmentId = isDept && typeof body.departmentId === 'string' ? body.departmentId.toUpperCase() : null;
+
+        // Set signed custom claims
+        await adminAuth.setCustomUserClaims(targetUid, {
+          role,
+          departmentId,
+          status: 'APPROVED',
+        });
+
+        // Update Firestore user document
+        await adminDb.collection('users').doc(targetUid).set({
+          role,
+          departmentId,
+          status: 'APPROVED',
+          isActive: true,
+          approvedBy: claims.uid,
+          approvedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        logger.audit({
+          event: 'ADMIN_USER_APPROVED',
+          action: 'approve_user_and_set_claims',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+          details: { assignedRole: role, departmentId },
+        });
+        sendJson(res, 200, { success: true, message: `User ${targetUid} approved with role ${role}.` });
         return;
       }
 
-      // 7. Twilio Health & Monitoring
+      // 8b. Admin User Rejection
+      const rejectMatch = pathname.match(/^\/api\/v1\/admin\/user-approvals\/([^/]+)\/reject$/);
+      if (req.method === 'POST' && rejectMatch) {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
+
+        const targetUid = rejectMatch[1];
+        if (targetUid === claims.uid) {
+          sendError(res, 400, 'Forbidden: Self-rejection is not allowed.', requestId);
+          return;
+        }
+
+        const reason = typeof body.reason === 'string' && body.reason.trim()
+          ? body.reason.trim().substring(0, 500)
+          : 'Registration rejected by administrator';
+
+        // Revoke claims
+        await adminAuth.setCustomUserClaims(targetUid, {
+          role: 'rejected',
+          status: 'REJECTED',
+        });
+
+        // Update Firestore user document
+        await adminDb.collection('users').doc(targetUid).set({
+          status: 'REJECTED',
+          isActive: false,
+          rejectionReason: reason,
+          rejectedBy: claims.uid,
+          rejectedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        logger.audit({
+          event: 'ADMIN_USER_REJECTED',
+          action: 'reject_user_and_revoke_claims',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+          details: { reason },
+        });
+        sendJson(res, 200, { success: true, message: `User ${targetUid} rejected.` });
+        return;
+      }
+
+      // 8c. Admin Citizen Identity Certification
+      const verifyCitizenMatch = pathname.match(/^\/api\/v1\/admin\/citizens\/([^/]+)\/verify$/);
+      if (req.method === 'POST' && verifyCitizenMatch) {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
+
+        const targetUid = verifyCitizenMatch[1];
+        const isVerified = body.verified === true;
+
+        await adminDb.collection('users').doc(targetUid).set({
+          isVerified,
+          identityStatus: isVerified ? 'VERIFIED' : 'REJECTED',
+          verifiedBy: claims.uid,
+          verifiedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        const rpRef = adminDb.collection('residentProfiles').doc(targetUid);
+        const rpSnap = await rpRef.get();
+        if (rpSnap.exists) {
+          await rpRef.set({
+            certificationStatus: isVerified ? 'VERIFIED' : 'REJECTED',
+            certifiedBy: claims.uid,
+            certifiedAt: FieldValue.serverTimestamp(),
+            isVerified,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+
+        logger.audit({
+          event: 'ADMIN_CITIZEN_VERIFIED',
+          action: 'certify_citizen_identity',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+          details: { isVerified },
+        });
+        sendJson(res, 200, { success: true, isVerified });
+        return;
+      }
+
+      // Twilio Health & Monitoring
       if (req.method === 'GET' && pathname === '/api/v1/admin/twilio/health') {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
+
         const health = await twilioBackendService.getTwilioHealth();
         sendJson(res, 200, health);
         return;
       }
 
-      // 6. Demo Reset
-      if (req.method === 'POST' && pathname === '/api/v1/demo/reset') {
-        sendJson(res, 200, { success: true, message: 'Demo data reset executed' });
-        return;
-      }
-
-      // 7. AI Chat Legacy Data Cleanup / Quarantine
+      // AI Chat Legacy Data Cleanup / Quarantine
       if (req.method === 'POST' && pathname === '/api/v1/ai/cleanup') {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
+
         const cleanupResult = await geminiService.quarantineLegacyConversations();
         sendJson(res, 200, { success: true, ...cleanupResult });
         return;
       }
 
-      // Default 404
-      sendJson(res, 404, { error: 'Not Found' });
+      // Demo Reset (DEV / TEST Only, ADMIN Required)
+      if (req.method === 'POST' && pathname === '/api/v1/demo/reset') {
+        if (process.env.NODE_ENV === 'production') {
+          sendError(res, 404, 'Not Found', requestId);
+          return;
+        }
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
+
+        sendJson(res, 200, { success: true, message: 'Demo reset executed.' });
+        return;
+      }
+
+      // Default 404 for unknown endpoints
+      sendError(res, 404, 'Not Found', requestId);
     } catch (routeErr: any) {
-      console.error('[Server Error]', routeErr);
-      sendJson(res, 500, { error: routeErr.message || 'Internal Server Error' });
+      console.error(`[Server Error][ReqId: ${requestId}] Unhandled exception:`, routeErr);
+      sendError(res, 500, 'Internal Server Error. Please contact MahaSetu support with the request ID.', requestId);
     }
   });
+
+  // Transport and Connection Timeouts
+  server.headersTimeout = 10000; // 10s
+  server.requestTimeout = 30000; // 30s
+  server.keepAliveTimeout = 5000; // 5s
 
   return server;
 }
 
 if (require.main === module) {
-  initBackendAdminAuth().then(async () => {
-    // Safely quarantine any unowned legacy conversations from previous versions
-    geminiService.quarantineLegacyConversations().then((res) => {
-      if (res.quarantinedConversations > 0) {
-        console.log(`[MahaSetu Backend] Quarantined ${res.quarantinedConversations} legacy unowned conversations.`);
-      }
-    }).catch(() => {});
+  const server = createBackendServer();
+  server.on('error', (e: any) => {
+    if (e.code === 'EADDRINUSE') {
+      console.log(`[MahaSetu Backend] Port ${PORT} is already in use. Server is active on http://${HOST}:${PORT}`);
+      process.exit(0);
+    } else {
+      console.error('[MahaSetu Backend] Server initialization error:', e);
+    }
+  });
 
-    const server = createBackendServer();
-    server.on('error', (e: any) => {
-      if (e.code === 'EADDRINUSE') {
-        console.log(`[MahaSetu Backend] Port ${PORT} is already active (another instance is running). Server is ready on http://0.0.0.0:${PORT}`);
-        process.exit(0);
-      } else {
-        console.error('[MahaSetu Backend] Server error:', e);
-      }
-    });
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`[MahaSetu Backend] Server running on http://0.0.0.0:${PORT}`);
-      console.log(`[MahaSetu Backend] Twilio Programmable Messaging API active. Isolation enforced.`);
-    });
+  server.listen(PORT, HOST, () => {
+    console.log(`[MahaSetu Backend] Trusted server running on http://${HOST}:${PORT}`);
+    console.log(`[MahaSetu Backend] Firebase Admin SDK active. Claims-based authorization enforced.`);
   });
 }

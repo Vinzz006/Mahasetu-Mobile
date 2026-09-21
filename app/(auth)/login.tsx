@@ -17,10 +17,10 @@ import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../store/AuthContext';
 import { authService } from '../../services/authService';
-import { DEMO_USERS, DEMO_PASSWORD } from '../../constants/demoData';
+import { DEMO_USERS, DemoUser } from '../../constants/demoData';
 
 export default function LoginScreen() {
-  const { signInWithEmail, signUpWithEmail, sendPasswordReset } = useAuth();
+  const { loginAsDemoUser, signInWithEmail, signUpWithEmail, sendPasswordReset } = useAuth();
 
   // Mode: 'signin' | 'register'
   const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
@@ -32,6 +32,9 @@ export default function LoginScreen() {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Demo loading state
+  const [loadingDemoId, setLoadingDemoId] = useState<string | null>(null);
 
   // Forgot Password Modal State
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -78,8 +81,16 @@ export default function LoginScreen() {
       Alert.alert('Missing Password', 'Please enter a password.');
       return;
     }
-    if (password.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+    if (password.length < 10 || !hasUpperCase || !hasLowerCase || !hasNumber || !hasSpecialChar) {
+      Alert.alert(
+        'Weak Password',
+        'Password must be at least 10 characters long and include an uppercase letter, lowercase letter, number, and a special character.'
+      );
       return;
     }
     if (password !== confirmPassword) {
@@ -123,18 +134,15 @@ export default function LoginScreen() {
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'citizen':
-        return '#0284C7';
-      case 'department_officer':
-        return '#7C3AED';
-      case 'admin':
-        return '#D97706';
-      case 'auditor':
-        return '#0D9488';
-      default:
-        return Colors.primary;
+  // Handle Demo Account Login
+  const handleSelectDemo = async (demo: DemoUser) => {
+    setLoadingDemoId(demo.id);
+    try {
+      await loginAsDemoUser(demo);
+    } catch (e: any) {
+      Alert.alert('Demo Login Error', e.message || 'Failed to authenticate demo account.');
+    } finally {
+      setLoadingDemoId(null);
     }
   };
 
@@ -347,47 +355,6 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Quick Demo Switcher Section */}
-        <View style={styles.demoSection}>
-          <View style={styles.demoSectionHeader}>
-            <Ionicons name="flash" size={16} color="#F59E0B" />
-            <Text style={styles.demoSectionTitle}>Official Demo Personas (1-Tap Auto-fill)</Text>
-          </View>
-          <Text style={styles.demoSectionDesc}>
-            Tap any persona to autofill demo credentials and test role-based access:
-          </Text>
-          <View style={styles.demoGrid}>
-            {DEMO_USERS.map((u) => (
-              <TouchableOpacity
-                key={u.id}
-                style={styles.demoCard}
-                onPress={() => {
-                  setEmail(u.email);
-                  setPassword(DEMO_PASSWORD);
-                  setAuthMode('signin');
-                }}
-                accessibilityLabel={`Fill credentials for ${u.name}`}
-              >
-                <View style={styles.demoCardHeader}>
-                  <Text style={styles.demoCardName} numberOfLines={1}>{u.name}</Text>
-                  <View style={[styles.roleBadge, { backgroundColor: getRoleBadgeColor(u.role) }]}>
-                    <Text style={styles.roleBadgeText}>
-                      {u.role === 'citizen'
-                        ? 'Citizen'
-                        : u.role === 'department_officer'
-                        ? (u.departmentId ? u.departmentId.replace('DEPT_', 'Dept ') : 'Officer')
-                        : u.role === 'admin'
-                        ? 'Admin'
-                        : 'Auditor'}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.demoCardEmail} numberOfLines={1}>{u.email}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
         {/* Forgot Password Modal */}
         <Modal
           visible={showForgotModal}
@@ -445,6 +412,114 @@ export default function LoginScreen() {
           </View>
         </Modal>
 
+        {/* Demo Accounts Quick-Switch Section (Strictly gated to Development & Demo Mode) */}
+        {Boolean(typeof __DEV__ !== 'undefined' && __DEV__ && process.env.EXPO_PUBLIC_DEMO_MODE === 'true') && (
+          <View style={styles.demoSection}>
+            <View style={styles.demoHeaderRow}>
+              <Ionicons name="people-circle-outline" size={22} color={Colors.primary} />
+              <Text style={styles.demoSectionTitle}>Official Demo Persona Switcher</Text>
+            </View>
+            <Text style={styles.demoSectionDesc}>
+              Select any official persona to test role-isolated dashboards with authentic Firebase Authentication:
+            </Text>
+
+            {/* Citizens */}
+            <Text style={styles.categoryLabel}>CITIZENS (Self-Service & Submit-Once)</Text>
+            {DEMO_USERS.filter((u) => u.role === 'citizen').map((demo) => (
+              <TouchableOpacity
+                key={demo.id}
+                style={styles.demoCard}
+                onPress={() => handleSelectDemo(demo)}
+                disabled={loadingDemoId !== null || submitting}
+              >
+                <View style={styles.avatarCircle}>
+                  <Ionicons name="person" size={18} color={Colors.primary} />
+                </View>
+                <View style={styles.demoInfo}>
+                  <Text style={styles.demoName}>{demo.name}</Text>
+                  <Text style={styles.demoRole}>Role: Citizen • {demo.city}</Text>
+                </View>
+                {loadingDemoId === demo.id ? (
+                  <ActivityIndicator color={Colors.primary} size="small" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            ))}
+
+            {/* Department Officers */}
+            <Text style={styles.categoryLabel}>DEPARTMENT OFFICERS (Verification Queue)</Text>
+            {DEMO_USERS.filter((u) => u.role === 'department_officer').map((demo) => (
+              <TouchableOpacity
+                key={demo.id}
+                style={[styles.demoCard, styles.deptCard]}
+                onPress={() => handleSelectDemo(demo)}
+                disabled={loadingDemoId !== null || submitting}
+              >
+                <View style={[styles.avatarCircle, styles.deptAvatar]}>
+                  <Ionicons name="business" size={18} color={Colors.accent} />
+                </View>
+                <View style={styles.demoInfo}>
+                  <Text style={styles.demoName}>{demo.name}</Text>
+                  <Text style={styles.demoRole}>{demo.departmentName}</Text>
+                </View>
+                {loadingDemoId === demo.id ? (
+                  <ActivityIndicator color={Colors.accent} size="small" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            ))}
+
+            {/* Administrators */}
+            <Text style={styles.categoryLabel}>ADMINISTRATORS (Approvals, Matrix & Systems)</Text>
+            {DEMO_USERS.filter((u) => u.role === 'admin').map((demo) => (
+              <TouchableOpacity
+                key={demo.id}
+                style={[styles.demoCard, styles.adminCard]}
+                onPress={() => handleSelectDemo(demo)}
+                disabled={loadingDemoId !== null || submitting}
+              >
+                <View style={[styles.avatarCircle, styles.adminAvatar]}>
+                  <Ionicons name="settings" size={18} color="#D97706" />
+                </View>
+                <View style={styles.demoInfo}>
+                  <Text style={styles.demoName}>{demo.name}</Text>
+                  <Text style={styles.demoRole}>State Administrator • HQ</Text>
+                </View>
+                {loadingDemoId === demo.id ? (
+                  <ActivityIndicator color="#D97706" size="small" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            ))}
+
+            {/* Auditor */}
+            <Text style={styles.categoryLabel}>INDEPENDENT AUDITOR (Compliance & Verification)</Text>
+            {DEMO_USERS.filter((u) => u.role === 'auditor').map((demo) => (
+              <TouchableOpacity
+                key={demo.id}
+                style={[styles.demoCard, styles.auditorCard]}
+                onPress={() => handleSelectDemo(demo)}
+                disabled={loadingDemoId !== null || submitting}
+              >
+                <View style={[styles.avatarCircle, styles.auditorAvatar]}>
+                  <Ionicons name="shield" size={18} color="#7C3AED" />
+                </View>
+                <View style={styles.demoInfo}>
+                  <Text style={styles.demoName}>{demo.name}</Text>
+                  <Text style={styles.demoRole}>Compliance Auditor • Read-Only Logs + Verification</Text>
+                </View>
+                {loadingDemoId === demo.id ? (
+                  <ActivityIndicator color="#7C3AED" size="small" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -710,71 +785,83 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   demoSection: {
-    marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
   },
-  demoSectionHeader: {
+  demoHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    marginBottom: 4,
   },
   demoSectionTitle: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: '700',
+    fontSize: Typography.fontSize.sm + 1,
+    fontWeight: '800',
     color: Colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   demoSectionDesc: {
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
+    marginTop: 2,
     marginBottom: Spacing.sm,
   },
-  demoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-    justifyContent: 'space-between',
+  categoryLabel: {
+    fontSize: Typography.fontSize.xs - 1,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+    letterSpacing: 0.5,
   },
   demoCard: {
-    width: '48%',
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: Spacing.xs,
-  },
-  demoCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 2,
-    gap: 4,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm + 2,
+    marginBottom: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  demoCardName: {
-    fontSize: Typography.fontSize.xs,
+  deptCard: {
+    borderColor: '#CCFBF1',
+  },
+  adminCard: {
+    borderColor: '#FEF3C7',
+  },
+  auditorCard: {
+    borderColor: '#EDE9FE',
+  },
+  avatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primarySubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
+  },
+  deptAvatar: {
+    backgroundColor: Colors.accentLight,
+  },
+  adminAvatar: {
+    backgroundColor: '#FEF3C7',
+  },
+  auditorAvatar: {
+    backgroundColor: '#EDE9FE',
+  },
+  demoInfo: {
+    flex: 1,
+  },
+  demoName: {
+    fontSize: Typography.fontSize.sm,
     fontWeight: '700',
     color: Colors.textPrimary,
-    flexShrink: 1,
   },
-  roleBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
-  },
-  roleBadgeText: {
-    color: Colors.textInverse,
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  demoCardEmail: {
-    fontSize: 10,
-    color: Colors.textMuted,
-    marginTop: 2,
+  demoRole: {
+    fontSize: Typography.fontSize.xs - 1,
+    color: Colors.textSecondary,
+    marginTop: 1,
   },
 });

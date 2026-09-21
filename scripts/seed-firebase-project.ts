@@ -9,8 +9,26 @@ import {
 } from 'firebase/firestore';
 import { config } from '../constants/config';
 import { app, auth, db, sanitizeFirestorePayload, assertNoUndefinedValues } from '../lib/firebase';
+import * as crypto from 'crypto';
 
-const DEFAULT_PASSWORD = 'MahaSetu@2026!';
+const projectId = config.firebase.projectId || process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || '';
+const isEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST);
+const isDevOrDemoProject = projectId.includes('demo') || projectId.includes('dev') || isEmulator;
+const forceProd = process.argv.includes('--force-prod-seed');
+
+if (!isDevOrDemoProject && !forceProd) {
+  console.error(
+    `\n[SECURITY REFUSAL] Refusing to seed project "${projectId}".\nProject ID must contain "demo" or "dev", or Firebase emulators must be running.\nPass --force-prod-seed to override this guard explicitly.\n`
+  );
+  process.exit(1);
+}
+
+function getPasswordForPersona(email: string): string {
+  if (process.env.EXPO_PUBLIC_DEMO_PASSWORD) {
+    return process.env.EXPO_PUBLIC_DEMO_PASSWORD;
+  }
+  return `Mh@${crypto.createHash('sha256').update(email + (process.env.SEED_SALT || 'mahasetu-seed-v1')).digest('hex').slice(0, 12)}!1`;
+}
 
 interface PersonaSeed {
   email: string;
@@ -31,8 +49,8 @@ interface PersonaSeed {
 const PERSONAS: PersonaSeed[] = [
   // 1-4 Citizens
   {
-    email: 'citizen.priya@mahasetu.gov.in',
-    name: 'Priya Sharma',
+    email: 'anusha@mahasetu.gov.in',
+    name: 'Anusha G.',
     role: 'CITIZEN',
     departmentId: null,
     status: 'APPROVED',
@@ -46,8 +64,8 @@ const PERSONAS: PersonaSeed[] = [
     isVerified: true,
   },
   {
-    email: 'citizen.rahul@mahasetu.gov.in',
-    name: 'Rahul Verma',
+    email: 'muthumayil@mahasetu.gov.in',
+    name: 'Muthumayil M.',
     role: 'CITIZEN',
     departmentId: null,
     status: 'APPROVED',
@@ -61,8 +79,8 @@ const PERSONAS: PersonaSeed[] = [
     isVerified: true,
   },
   {
-    email: 'citizen.sneha@mahasetu.gov.in',
-    name: 'Sneha Patil',
+    email: 'akshita@mahasetu.gov.in',
+    name: 'Akshita S S',
     role: 'CITIZEN',
     departmentId: null,
     status: 'APPROVED',
@@ -76,8 +94,8 @@ const PERSONAS: PersonaSeed[] = [
     isVerified: false,
   },
   {
-    email: 'citizen.pooja@mahasetu.gov.in',
-    name: 'Pooja Kulkarni',
+    email: 'kanimozhi@mahasetu.gov.in',
+    name: 'Kanimozhi N',
     role: 'CITIZEN',
     departmentId: null,
     status: 'APPROVED',
@@ -93,8 +111,8 @@ const PERSONAS: PersonaSeed[] = [
 
   // 5-7 Department Officers
   {
-    email: 'officer.dept_a@mahasetu.gov.in',
-    name: 'Ramesh Kumar',
+    email: 'vinesh.dept_a@mahasetu.gov.in',
+    name: 'Vinesh S',
     role: 'DEPARTMENT_A',
     departmentId: 'DEPT_A',
     status: 'APPROVED',
@@ -108,8 +126,8 @@ const PERSONAS: PersonaSeed[] = [
     isVerified: true,
   },
   {
-    email: 'officer.dept_b@mahasetu.gov.in',
-    name: 'Suresh Joshi',
+    email: 'sai.dept_b@mahasetu.gov.in',
+    name: 'Sai Sharavan G',
     role: 'DEPARTMENT_B',
     departmentId: 'DEPT_B',
     status: 'APPROVED',
@@ -123,8 +141,8 @@ const PERSONAS: PersonaSeed[] = [
     isVerified: true,
   },
   {
-    email: 'officer.dept_c@mahasetu.gov.in',
-    name: 'Mahesh Deshmukh',
+    email: 'omesh.dept_c@mahasetu.gov.in',
+    name: 'Omesh Kaarthik S U',
     role: 'DEPARTMENT_C',
     departmentId: 'DEPT_C',
     status: 'APPROVED',
@@ -140,8 +158,8 @@ const PERSONAS: PersonaSeed[] = [
 
   // 8-9 Administrators
   {
-    email: 'admin.onboarding@mahasetu.gov.in',
-    name: 'Anil Shinde',
+    email: 'tammu.admin@mahasetu.gov.in',
+    name: 'Tammu Vedesh Kumar',
     role: 'ADMIN',
     departmentId: null,
     status: 'APPROVED',
@@ -155,8 +173,8 @@ const PERSONAS: PersonaSeed[] = [
     isVerified: true,
   },
   {
-    email: 'admin.system@mahasetu.gov.in',
-    name: 'Vijay Patil',
+    email: 'shanmugam.admin@mahasetu.gov.in',
+    name: 'Shanmugam K',
     role: 'ADMIN',
     departmentId: null,
     status: 'APPROVED',
@@ -172,8 +190,8 @@ const PERSONAS: PersonaSeed[] = [
 
   // 10 Auditor
   {
-    email: 'auditor.compliance@mahasetu.gov.in',
-    name: 'Neha Deshpande',
+    email: 'tanushri.auditor@mahasetu.gov.in',
+    name: 'Tanushri S',
     role: 'AUDITOR',
     departmentId: null,
     status: 'APPROVED',
@@ -212,14 +230,15 @@ async function seedPersonas() {
 
   for (const persona of PERSONAS) {
     let uid = '';
+    const password = getPasswordForPersona(persona.email);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, persona.email, DEFAULT_PASSWORD);
+      const userCredential = await createUserWithEmailAndPassword(auth, persona.email, password);
       uid = userCredential.user.uid;
       console.log(`[AUTH CREATED] ${persona.name} (${persona.email}) -> UID: ${uid}`);
     } catch (authErr: any) {
       if (authErr.code === 'auth/email-already-in-use') {
         try {
-          const userCredential = await signInWithEmailAndPassword(auth, persona.email, DEFAULT_PASSWORD);
+          const userCredential = await signInWithEmailAndPassword(auth, persona.email, password);
           uid = userCredential.user.uid;
           console.log(`[AUTH EXISTS] ${persona.name} (${persona.email}) -> Logged in UID: ${uid}`);
         } catch (signInErr: any) {
@@ -235,7 +254,8 @@ async function seedPersonas() {
   }
 
   console.log('\n--- Phase 2: Authenticating as Administrator to Write Firestore Documents ---');
-  const adminCred = await signInWithEmailAndPassword(auth, 'admin.onboarding@mahasetu.gov.in', DEFAULT_PASSWORD);
+  const adminPassword = getPasswordForPersona('admin.onboarding@mahasetu.gov.in');
+  const adminCred = await signInWithEmailAndPassword(auth, 'admin.onboarding@mahasetu.gov.in', adminPassword);
   console.log(`[ADMIN AUTH ACTIVE] Anil Shinde (${adminCred.user.uid})`);
 
   for (const persona of PERSONAS) {

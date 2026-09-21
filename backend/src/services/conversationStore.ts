@@ -44,13 +44,19 @@ class ConversationStore {
   private initialized = false;
 
   constructor() {
-    const dataDir = path.resolve(__dirname, '../../data');
-    if (!fs.existsSync(dataDir)) {
+    const configuredPath = process.env.CONVERSATION_STORE_PATH;
+    if (configuredPath) {
+      this.filePath = path.resolve(configuredPath);
+    } else {
+      const dataDir = path.resolve(process.cwd(), '.data');
+      this.filePath = path.join(dataDir, 'user_conversations.json');
+    }
+    const dir = path.dirname(this.filePath);
+    if (!fs.existsSync(dir)) {
       try {
-        fs.mkdirSync(dataDir, { recursive: true });
+        fs.mkdirSync(dir, { recursive: true });
       } catch {}
     }
-    this.filePath = path.join(dataDir, 'user_conversations.json');
     this.loadFromDisk();
   }
 

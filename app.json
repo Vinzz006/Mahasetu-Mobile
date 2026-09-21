@@ -22,7 +22,7 @@
         "backgroundColor": "#0F172A"
       },
       "package": "gov.mahasetu.mobile",
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": false
     },
     "web": {
       "favicon": "./assets/favicon.png",

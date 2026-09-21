@@ -1,7 +1,10 @@
+declare const __DEV__: boolean | undefined;
+
 import { auth, db, sanitizeFirestorePayload, assertNoUndefinedValues } from '../lib/firebase';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
@@ -18,6 +21,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { UserProfile, UserRole, DepartmentId, AccountStatus } from '../types';
+import { DEMO_USERS, DemoUser, DEMO_PASSWORD } from '../constants/demoData';
 import { auditService } from './auditService';
 import { api } from './api';
 
@@ -123,12 +127,44 @@ export const authService = {
   },
 
   /**
+  /**
+   * Validates password strength: at least 10 characters, uppercase, lowercase, digit, and special char.
+   */
+  validatePasswordStrength(password: string): { isValid: boolean; error?: string } {
+    if (!password || password.length < 10) {
+      return { isValid: false, error: 'Password must be at least 10 characters long.' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one uppercase letter.' };
+    }
+    if (!/[a-z]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one lowercase letter.' };
+    }
+    if (!/[0-9]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one number.' };
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one special character.' };
+    }
+    return { isValid: true };
+  },
+
+  /**
    * Authentic Email & Password Registration via Firebase Auth
    * Starts with role=null and status='PENDING' until Admin approval
    */
   async signUpWithEmail(email: string, password: string, displayName: string): Promise<UserProfile> {
+    const passCheck = this.validatePasswordStrength(password);
+    if (!passCheck.isValid) {
+      throw new Error(passCheck.error || 'Password does not meet complexity requirements.');
+    }
     const cleanEmail = email.trim().toLowerCase();
     const result = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+    try {
+      await sendEmailVerification(result.user);
+    } catch (verifyErr) {
+      console.warn('sendEmailVerification failed or skipped:', verifyErr);
+    }
     const profile = await this.initializeNewUserRecord(result.user, displayName.trim());
     return profile;
   },
@@ -342,8 +378,174 @@ export const authService = {
   },
 
   /**
+   * Authenticate real Firebase Auth demo account and ensure Firestore profile exists.
+   * NEVER fabricates request.auth.uid. Guarantees auth.currentUser != null.
+   */
+  async switchDemoAccount(demo: DemoUser): Promise<UserProfile> {
+    const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+    if (!isDev || process.env.EXPO_PUBLIC_DEMO_MODE !== 'true') {
+      throw new Error('Demo account switcher is strictly disabled in production builds.');
+    }
+    const password = DEMO_PASSWORD;
+    if (!password) {
+      throw new Error('Demo password is not configured. Please set EXPO_PUBLIC_DEMO_PASSWORD in .env.');
+    }
+    let firebaseUser: FirebaseUser | null = null;
+
+    // 1. Authenticate with real Firebase Authentication
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, demo.email, password);
+      firebaseUser = userCredential.user;
+    } catch (authErr: any) {
+      if (
+        authErr.code === 'auth/user-not-found' ||
+        authErr.code === 'auth/invalid-credential' ||
+        authErr.code === 'auth/invalid-login-credentials'
+      ) {
+        // Create account if not present in Firebase Auth
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, demo.email, password);
+          firebaseUser = userCredential.user;
+        } catch (createErr: any) {
+          if (createErr.code === 'auth/email-already-in-use') {
+            const userCredential = await signInWithEmailAndPassword(auth, demo.email, password);
+            firebaseUser = userCredential.user;
+          } else {
+            throw createErr;
+          }
+        }
+      } else {
+        throw authErr;
+      }
+    }
+
+    if (!firebaseUser) {
+      throw new Error(`Failed to authenticate demo user ${demo.email} in Firebase Auth`);
+    }
+
+    const realUid = firebaseUser.uid;
+
+    // 2. Ensure Firestore users/{realUid} is seeded with canonical role and APPROVED status
+    const userDocRef = doc(db, 'users', realUid);
+    const existingDoc = await getDoc(userDocRef);
+
+    // Map role to canonical Firestore role
+    let canonicalRole: UserRole = 'CITIZEN';
+    const rawRole = (demo.role || '').toLowerCase();
+    if (rawRole === 'citizen' || demo.role === 'CITIZEN') {
+      canonicalRole = 'CITIZEN';
+    } else if (rawRole === 'admin' || demo.role === 'ADMIN') {
+      canonicalRole = 'ADMIN';
+    } else if (rawRole === 'auditor' || demo.role === 'AUDITOR') {
+      canonicalRole = 'AUDITOR';
+    } else if (
+      demo.role === 'DEPARTMENT_A' ||
+      (rawRole === 'department_officer' && demo.departmentId === 'DEPT_A')
+    ) {
+      canonicalRole = 'DEPARTMENT_A';
+    } else if (
+      demo.role === 'DEPARTMENT_B' ||
+      (rawRole === 'department_officer' && demo.departmentId === 'DEPT_B')
+    ) {
+      canonicalRole = 'DEPARTMENT_B';
+    } else if (
+      demo.role === 'DEPARTMENT_C' ||
+      (rawRole === 'department_officer' && demo.departmentId === 'DEPT_C')
+    ) {
+      canonicalRole = 'DEPARTMENT_C';
+    } else {
+      canonicalRole = demo.role as UserRole;
+    }
+
+    const canonicalDeptId =
+      canonicalRole === 'DEPARTMENT_A'
+        ? 'DEPT_A'
+        : canonicalRole === 'DEPARTMENT_B'
+        ? 'DEPT_B'
+        : canonicalRole === 'DEPARTMENT_C'
+        ? 'DEPT_C'
+        : demo.departmentId || null;
+
+    let profile: UserProfile;
+
+    if (existingDoc.exists()) {
+      const data = existingDoc.data();
+      profile = {
+        uid: realUid,
+        email: data.email || demo.email,
+        name: data.name || demo.name,
+        role: (data.role as UserRole) || canonicalRole,
+        departmentId: (data.departmentId as DepartmentId) ?? canonicalDeptId,
+        status: (data.status as AccountStatus) || 'APPROVED',
+        isActive: true,
+        phone: data.phone || demo.phone,
+        city: data.city || demo.city,
+        district: data.district || demo.district,
+        state: data.state || demo.state,
+        pinCode: data.pinCode || demo.pinCode,
+        aadhaarRef: data.aadhaarRef || demo.aadhaarRef,
+        isVerified: !!data.isVerified || demo.isVerified,
+        verifiedAt: data.verifiedAt?.toDate?.()?.toISOString() || data.verifiedAt || new Date().toISOString(),
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Ensure profile in Firestore has APPROVED status and canonical role
+      if (data.status !== 'APPROVED' || !data.role) {
+        const updatePayload = sanitizeFirestorePayload({
+          role: canonicalRole,
+          status: 'APPROVED',
+          isActive: true,
+          departmentId: canonicalDeptId,
+          updatedAt: serverTimestamp(),
+        });
+        assertNoUndefinedValues(updatePayload, `users/${realUid}`);
+        await setDoc(userDocRef, updatePayload, { merge: true });
+        profile.role = canonicalRole;
+        profile.status = 'APPROVED';
+      }
+    } else {
+      profile = {
+        uid: realUid,
+        email: demo.email,
+        name: demo.name,
+        role: canonicalRole,
+        departmentId: canonicalDeptId,
+        status: 'APPROVED',
+        isActive: true,
+        phone: demo.phone,
+        city: demo.city,
+        district: demo.district,
+        state: demo.state,
+        pinCode: demo.pinCode,
+        aadhaarRef: demo.aadhaarRef,
+        isVerified: demo.isVerified,
+        verifiedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const payload = sanitizeFirestorePayload({
+        ...profile,
+        verifiedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      assertNoUndefinedValues(payload, `users/${realUid}`);
+      await setDoc(userDocRef, payload);
+    }
+
+    // 3. Verify that auth.currentUser matches profile.uid
+    if (!auth.currentUser || auth.currentUser.uid !== realUid) {
+      throw new Error(`Authentication session mismatch: expected ${realUid}, got ${auth.currentUser?.uid}`);
+    }
+
+    return profile;
+  },
+
+  /**
    * Admin approves a pending user and assigns role
-   * Calls: POST /api/v1/admin/user-approvals/:uid/approve or updates Firestore directly
+   * Calls: POST /api/v1/admin/user-approvals/:uid/approve
    */
   async approvePendingUser(
     targetUid: string,
@@ -358,23 +560,14 @@ export const authService = {
 
     const cleanDeptId = isDeptOfficer ? (departmentId || null) : null;
 
-    try {
-      await api.post(`/api/v1/admin/user-approvals/${targetUid}/approve`, {
-        role: assignedRole,
-        departmentId: cleanDeptId,
-      });
-    } catch (backendError) {
-      console.warn('Backend approval endpoint failed, updating Firestore directly:', backendError);
-      const userRef = doc(db, 'users', targetUid);
-      const updateData = sanitizeFirestorePayload({
-        role: assignedRole,
-        departmentId: cleanDeptId,
-        status: 'APPROVED',
-        isActive: true,
-        updatedAt: serverTimestamp(),
-      });
-      assertNoUndefinedValues(updateData, `users/${targetUid}`);
-      await setDoc(userRef, updateData, { merge: true });
+    await api.post(`/api/v1/admin/user-approvals/${targetUid}/approve`, {
+      role: assignedRole,
+      departmentId: cleanDeptId,
+    });
+
+    // Refresh claims if currently signed in user was modified
+    if (auth.currentUser?.uid === targetUid) {
+      await auth.currentUser.getIdToken(true);
     }
 
     // Append to immutable audit log
@@ -393,19 +586,7 @@ export const authService = {
    * Admin rejects a pending user
    */
   async rejectPendingUser(targetUid: string, reason?: string): Promise<void> {
-    try {
-      await api.post(`/api/v1/admin/user-approvals/${targetUid}/reject`, { reason });
-    } catch {
-      const userRef = doc(db, 'users', targetUid);
-      const updateData = sanitizeFirestorePayload({
-        status: 'REJECTED',
-        isActive: false,
-        rejectionReason: reason || 'Application rejected by administrator',
-        updatedAt: serverTimestamp(),
-      });
-      assertNoUndefinedValues(updateData, `users/${targetUid}`);
-      await setDoc(userRef, updateData, { merge: true });
-    }
+    await api.post(`/api/v1/admin/user-approvals/${targetUid}/reject`, { reason });
 
     // Append to immutable audit log
     await auditService.logAction({
@@ -423,38 +604,7 @@ export const authService = {
    * Admin verifies citizen identity status
    */
   async verifyCitizenIdentity(targetUid: string, verified: boolean): Promise<void> {
-    try {
-      await api.post(`/api/v1/admin/citizens/${targetUid}/verify`, { verified });
-    } catch {
-      const userRef = doc(db, 'users', targetUid);
-      const updateData = sanitizeFirestorePayload({
-        isVerified: verified,
-        identityStatus: verified ? 'VERIFIED' : 'REJECTED',
-        verifiedAt: serverTimestamp(),
-        verifiedBy: auth.currentUser?.uid || 'admin',
-        updatedAt: serverTimestamp(),
-      });
-      assertNoUndefinedValues(updateData, `users/${targetUid}`);
-      await setDoc(userRef, updateData, { merge: true });
-
-      // Also update residentProfiles if present
-      try {
-        const rpRef = doc(db, 'residentProfiles', targetUid);
-        const rpSnap = await getDoc(rpRef);
-        if (rpSnap.exists()) {
-          const rpUpdate = sanitizeFirestorePayload({
-            certificationStatus: verified ? 'VERIFIED' : 'REJECTED',
-            certifiedAt: serverTimestamp(),
-            certifiedBy: auth.currentUser?.uid || 'admin',
-            updatedAt: serverTimestamp(),
-          });
-          assertNoUndefinedValues(rpUpdate, `residentProfiles/${targetUid}`);
-          await setDoc(rpRef, rpUpdate, { merge: true });
-        }
-      } catch (rpErr: any) {
-        console.warn('residentProfiles update warning during certification:', rpErr.message);
-      }
-    }
+    await api.post(`/api/v1/admin/citizens/${targetUid}/verify`, { verified });
 
     // Append to immutable audit log
     await auditService.logAction({
