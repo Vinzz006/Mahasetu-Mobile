@@ -28,7 +28,8 @@ export interface DemoUser {
   isVerified: boolean;
 }
 
-export const DEMO_PASSWORD = 'MahaSetu@2026!';
+// Demo credentials must only be loaded from environment variables in local development
+export const DEMO_PASSWORD = process.env.EXPO_PUBLIC_DEMO_PASSWORD || '';
 
 export const DEMO_USERS: DemoUser[] = [
   {

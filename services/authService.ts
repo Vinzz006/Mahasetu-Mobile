@@ -1,3 +1,5 @@
+declare const __DEV__: boolean | undefined;
+
 import { auth, db, sanitizeFirestorePayload, assertNoUndefinedValues } from '../lib/firebase';
 import {
   signInWithEmailAndPassword,
@@ -353,7 +355,14 @@ export const authService = {
    * NEVER fabricates request.auth.uid. Guarantees auth.currentUser != null.
    */
   async switchDemoAccount(demo: DemoUser): Promise<UserProfile> {
+    const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+    if (!isDev || process.env.EXPO_PUBLIC_DEMO_MODE !== 'true') {
+      throw new Error('Demo account switcher is strictly disabled in production builds.');
+    }
     const password = DEMO_PASSWORD;
+    if (!password) {
+      throw new Error('Demo password is not configured. Please set EXPO_PUBLIC_DEMO_PASSWORD in .env.');
+    }
     let firebaseUser: FirebaseUser | null = null;
 
     // 1. Authenticate with real Firebase Authentication

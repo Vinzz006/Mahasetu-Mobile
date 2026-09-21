@@ -32,9 +32,19 @@ The mobile application is a first-class client of the **MahaSetu Platform**, int
 
 ---
 
-## 👥 Built-in Official Demo Accounts
+## 👥 Official Demo Personas (Development & Local Emulator Only)
 
-The login screen includes an **Official Demo Accounts Switcher** allowing instant testing and demonstration across all roles:
+> **Security Note:** Demo persona quick-switching is strictly disabled in production releases (`__DEV__ === false`) and requires `EXPO_PUBLIC_DEMO_MODE=true`. Demo passwords are never hardcoded or stored in the repository.
+
+To populate demo personas in your local Firebase Emulator for development:
+
+```bash
+# 1. Set development password in your local .env
+EXPO_PUBLIC_DEMO_PASSWORD=your_secure_dev_password
+
+# 2. Run seed script against local Firebase Emulator
+npx tsx scripts/seed-firebase-project.ts
+```
 
 | Role | Name | Identifier | Purpose / Scope |
 | :--- | :--- | :--- | :--- |

@@ -404,112 +404,114 @@ export default function LoginScreen() {
           </View>
         </Modal>
 
-        {/* Demo Accounts Quick-Switch Section */}
-        <View style={styles.demoSection}>
-          <View style={styles.demoHeaderRow}>
-            <Ionicons name="people-circle-outline" size={22} color={Colors.primary} />
-            <Text style={styles.demoSectionTitle}>Official Demo Persona Switcher</Text>
+        {/* Demo Accounts Quick-Switch Section (Strictly gated to Development & Demo Mode) */}
+        {Boolean(typeof __DEV__ !== 'undefined' && __DEV__ && process.env.EXPO_PUBLIC_DEMO_MODE === 'true') && (
+          <View style={styles.demoSection}>
+            <View style={styles.demoHeaderRow}>
+              <Ionicons name="people-circle-outline" size={22} color={Colors.primary} />
+              <Text style={styles.demoSectionTitle}>Official Demo Persona Switcher</Text>
+            </View>
+            <Text style={styles.demoSectionDesc}>
+              Select any official persona to test role-isolated dashboards with authentic Firebase Authentication:
+            </Text>
+
+            {/* Citizens */}
+            <Text style={styles.categoryLabel}>CITIZENS (Self-Service & Submit-Once)</Text>
+            {DEMO_USERS.filter((u) => u.role === 'citizen').map((demo) => (
+              <TouchableOpacity
+                key={demo.id}
+                style={styles.demoCard}
+                onPress={() => handleSelectDemo(demo)}
+                disabled={loadingDemoId !== null || submitting}
+              >
+                <View style={styles.avatarCircle}>
+                  <Ionicons name="person" size={18} color={Colors.primary} />
+                </View>
+                <View style={styles.demoInfo}>
+                  <Text style={styles.demoName}>{demo.name}</Text>
+                  <Text style={styles.demoRole}>Role: Citizen • {demo.city}</Text>
+                </View>
+                {loadingDemoId === demo.id ? (
+                  <ActivityIndicator color={Colors.primary} size="small" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            ))}
+
+            {/* Department Officers */}
+            <Text style={styles.categoryLabel}>DEPARTMENT OFFICERS (Verification Queue)</Text>
+            {DEMO_USERS.filter((u) => u.role === 'department_officer').map((demo) => (
+              <TouchableOpacity
+                key={demo.id}
+                style={[styles.demoCard, styles.deptCard]}
+                onPress={() => handleSelectDemo(demo)}
+                disabled={loadingDemoId !== null || submitting}
+              >
+                <View style={[styles.avatarCircle, styles.deptAvatar]}>
+                  <Ionicons name="business" size={18} color={Colors.accent} />
+                </View>
+                <View style={styles.demoInfo}>
+                  <Text style={styles.demoName}>{demo.name}</Text>
+                  <Text style={styles.demoRole}>{demo.departmentName}</Text>
+                </View>
+                {loadingDemoId === demo.id ? (
+                  <ActivityIndicator color={Colors.accent} size="small" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            ))}
+
+            {/* Administrators */}
+            <Text style={styles.categoryLabel}>ADMINISTRATORS (Approvals, Matrix & Systems)</Text>
+            {DEMO_USERS.filter((u) => u.role === 'admin').map((demo) => (
+              <TouchableOpacity
+                key={demo.id}
+                style={[styles.demoCard, styles.adminCard]}
+                onPress={() => handleSelectDemo(demo)}
+                disabled={loadingDemoId !== null || submitting}
+              >
+                <View style={[styles.avatarCircle, styles.adminAvatar]}>
+                  <Ionicons name="settings" size={18} color="#D97706" />
+                </View>
+                <View style={styles.demoInfo}>
+                  <Text style={styles.demoName}>{demo.name}</Text>
+                  <Text style={styles.demoRole}>State Administrator • HQ</Text>
+                </View>
+                {loadingDemoId === demo.id ? (
+                  <ActivityIndicator color="#D97706" size="small" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            ))}
+
+            {/* Auditor */}
+            <Text style={styles.categoryLabel}>INDEPENDENT AUDITOR (Compliance & Verification)</Text>
+            {DEMO_USERS.filter((u) => u.role === 'auditor').map((demo) => (
+              <TouchableOpacity
+                key={demo.id}
+                style={[styles.demoCard, styles.auditorCard]}
+                onPress={() => handleSelectDemo(demo)}
+                disabled={loadingDemoId !== null || submitting}
+              >
+                <View style={[styles.avatarCircle, styles.auditorAvatar]}>
+                  <Ionicons name="shield" size={18} color="#7C3AED" />
+                </View>
+                <View style={styles.demoInfo}>
+                  <Text style={styles.demoName}>{demo.name}</Text>
+                  <Text style={styles.demoRole}>Compliance Auditor • Read-Only Logs + Verification</Text>
+                </View>
+                {loadingDemoId === demo.id ? (
+                  <ActivityIndicator color="#7C3AED" size="small" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
-          <Text style={styles.demoSectionDesc}>
-            Select any official persona to test role-isolated dashboards with authentic Firebase Authentication:
-          </Text>
-
-          {/* Citizens */}
-          <Text style={styles.categoryLabel}>CITIZENS (Self-Service & Submit-Once)</Text>
-          {DEMO_USERS.filter((u) => u.role === 'citizen').map((demo) => (
-            <TouchableOpacity
-              key={demo.id}
-              style={styles.demoCard}
-              onPress={() => handleSelectDemo(demo)}
-              disabled={loadingDemoId !== null || submitting}
-            >
-              <View style={styles.avatarCircle}>
-                <Ionicons name="person" size={18} color={Colors.primary} />
-              </View>
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoRole}>Role: Citizen • {demo.city}</Text>
-              </View>
-              {loadingDemoId === demo.id ? (
-                <ActivityIndicator color={Colors.primary} size="small" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-              )}
-            </TouchableOpacity>
-          ))}
-
-          {/* Department Officers */}
-          <Text style={styles.categoryLabel}>DEPARTMENT OFFICERS (Verification Queue)</Text>
-          {DEMO_USERS.filter((u) => u.role === 'department_officer').map((demo) => (
-            <TouchableOpacity
-              key={demo.id}
-              style={[styles.demoCard, styles.deptCard]}
-              onPress={() => handleSelectDemo(demo)}
-              disabled={loadingDemoId !== null || submitting}
-            >
-              <View style={[styles.avatarCircle, styles.deptAvatar]}>
-                <Ionicons name="business" size={18} color={Colors.accent} />
-              </View>
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoRole}>{demo.departmentName}</Text>
-              </View>
-              {loadingDemoId === demo.id ? (
-                <ActivityIndicator color={Colors.accent} size="small" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-              )}
-            </TouchableOpacity>
-          ))}
-
-          {/* Administrators */}
-          <Text style={styles.categoryLabel}>ADMINISTRATORS (Approvals, Matrix & Systems)</Text>
-          {DEMO_USERS.filter((u) => u.role === 'admin').map((demo) => (
-            <TouchableOpacity
-              key={demo.id}
-              style={[styles.demoCard, styles.adminCard]}
-              onPress={() => handleSelectDemo(demo)}
-              disabled={loadingDemoId !== null || submitting}
-            >
-              <View style={[styles.avatarCircle, styles.adminAvatar]}>
-                <Ionicons name="settings" size={18} color="#D97706" />
-              </View>
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoRole}>State Administrator • HQ</Text>
-              </View>
-              {loadingDemoId === demo.id ? (
-                <ActivityIndicator color="#D97706" size="small" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-              )}
-            </TouchableOpacity>
-          ))}
-
-          {/* Auditor */}
-          <Text style={styles.categoryLabel}>INDEPENDENT AUDITOR (Compliance & Verification)</Text>
-          {DEMO_USERS.filter((u) => u.role === 'auditor').map((demo) => (
-            <TouchableOpacity
-              key={demo.id}
-              style={[styles.demoCard, styles.auditorCard]}
-              onPress={() => handleSelectDemo(demo)}
-              disabled={loadingDemoId !== null || submitting}
-            >
-              <View style={[styles.avatarCircle, styles.auditorAvatar]}>
-                <Ionicons name="shield" size={18} color="#7C3AED" />
-              </View>
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoRole}>Compliance Auditor • Read-Only Logs + Verification</Text>
-              </View>
-              {loadingDemoId === demo.id ? (
-                <ActivityIndicator color="#7C3AED" size="small" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
