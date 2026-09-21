@@ -905,6 +905,125 @@ export function createBackendServer(): http.Server {
       // 8. Admin Privileged Routes (ADMIN Role Only)
       // ==========================================
 
+      // 8a. Admin User Approval & Custom Claims Assignment
+      const approveMatch = pathname.match(/^\/api\/v1\/admin\/user-approvals\/([^/]+)\/approve$/);
+      if (req.method === 'POST' && approveMatch) {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
+
+        const targetUid = approveMatch[1];
+        if (targetUid === claims.uid) {
+          sendError(res, 400, 'Forbidden: Self-approval or self-role assignment is prohibited.', requestId);
+          return;
+        }
+
+        const role = typeof body.role === 'string' ? body.role.toUpperCase() : '';
+        const allowedRoles = ['CITIZEN', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'];
+        if (!allowedRoles.includes(role)) {
+          sendError(res, 400, `Invalid role: must be one of ${allowedRoles.join(', ')}`, requestId);
+          return;
+        }
+
+        const isDept = ['DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C'].includes(role);
+        const departmentId = isDept && typeof body.departmentId === 'string' ? body.departmentId.toUpperCase() : null;
+
+        // Set signed custom claims
+        await adminAuth.setCustomUserClaims(targetUid, {
+          role,
+          departmentId,
+          status: 'APPROVED',
+        });
+
+        // Update Firestore user document
+        await adminDb.collection('users').doc(targetUid).set({
+          role,
+          departmentId,
+          status: 'APPROVED',
+          isActive: true,
+          approvedBy: claims.uid,
+          approvedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        console.log(`[Admin Audit] Admin ${claims.uid} approved user ${targetUid} with role ${role} (dept: ${departmentId})`);
+        sendJson(res, 200, { success: true, message: `User ${targetUid} approved with role ${role}.` });
+        return;
+      }
+
+      // 8b. Admin User Rejection
+      const rejectMatch = pathname.match(/^\/api\/v1\/admin\/user-approvals\/([^/]+)\/reject$/);
+      if (req.method === 'POST' && rejectMatch) {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
+
+        const targetUid = rejectMatch[1];
+        if (targetUid === claims.uid) {
+          sendError(res, 400, 'Forbidden: Self-rejection is not allowed.', requestId);
+          return;
+        }
+
+        const reason = typeof body.reason === 'string' && body.reason.trim()
+          ? body.reason.trim().substring(0, 500)
+          : 'Registration rejected by administrator';
+
+        // Revoke claims
+        await adminAuth.setCustomUserClaims(targetUid, {
+          role: 'rejected',
+          status: 'REJECTED',
+        });
+
+        // Update Firestore user document
+        await adminDb.collection('users').doc(targetUid).set({
+          status: 'REJECTED',
+          isActive: false,
+          rejectionReason: reason,
+          rejectedBy: claims.uid,
+          rejectedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        console.log(`[Admin Audit] Admin ${claims.uid} rejected user ${targetUid}: ${reason}`);
+        sendJson(res, 200, { success: true, message: `User ${targetUid} rejected.` });
+        return;
+      }
+
+      // 8c. Admin Citizen Identity Certification
+      const verifyCitizenMatch = pathname.match(/^\/api\/v1\/admin\/citizens\/([^/]+)\/verify$/);
+      if (req.method === 'POST' && verifyCitizenMatch) {
+        const claims = await requireAuth(req, res, requestId);
+        if (!claims) return;
+        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
+
+        const targetUid = verifyCitizenMatch[1];
+        const isVerified = body.verified === true;
+
+        await adminDb.collection('users').doc(targetUid).set({
+          isVerified,
+          identityStatus: isVerified ? 'VERIFIED' : 'REJECTED',
+          verifiedBy: claims.uid,
+          verifiedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        const rpRef = adminDb.collection('residentProfiles').doc(targetUid);
+        const rpSnap = await rpRef.get();
+        if (rpSnap.exists) {
+          await rpRef.set({
+            certificationStatus: isVerified ? 'VERIFIED' : 'REJECTED',
+            certifiedBy: claims.uid,
+            certifiedAt: FieldValue.serverTimestamp(),
+            isVerified,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+
+        console.log(`[Admin Audit] Admin ${claims.uid} set citizen ${targetUid} verification to ${isVerified}`);
+        sendJson(res, 200, { success: true, isVerified });
+        return;
+      }
+
       // Twilio Health & Monitoring
       if (req.method === 'GET' && pathname === '/api/v1/admin/twilio/health') {
         const claims = await requireAuth(req, res, requestId);

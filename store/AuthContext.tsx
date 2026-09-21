@@ -5,6 +5,8 @@ import { DemoUser } from '../constants/demoData';
 import { router } from 'expo-router';
 import { Alert } from 'react-native';
 
+import { auth } from '../lib/firebase';
+
 export type AuthState =
   | 'Loading'
   | 'Authenticated'
@@ -25,7 +27,7 @@ interface AuthContextType {
   loginAsDemoUser: (demoUser: DemoUser) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  routeUserByRole: (profile: UserProfile) => void;
+  routeUserByRole: (profile: UserProfile) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -94,7 +96,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(updatedProfile);
         setAuthState(deriveAuthState(updatedProfile));
         if (updatedProfile.status === 'APPROVED' && updatedProfile.role && updatedProfile.role !== 'pending') {
-          routeUserByRole(updatedProfile);
+          // Refresh token claims immediately upon approval
+          authService.refreshIdToken().then(() => {
+            routeUserByRole(updatedProfile);
+          });
         }
       }
     });
@@ -102,8 +107,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, [user?.uid]);
 
-  const routeUserByRole = (profile: UserProfile) => {
-    if (profile.status === 'SUSPENDED') {
+  const routeUserByRole = async (profile: UserProfile) => {
+    let effectiveRole: string | null = profile.role || null;
+    let effectiveStatus: string | null = profile.status || null;
+
+    // Read authoritative role strictly from verified custom token claims
+    if (auth.currentUser && !profile.uid.startsWith('demo-')) {
+      try {
+        const tokenResult = await auth.currentUser.getIdTokenResult(true);
+        if (tokenResult.claims.role) {
+          effectiveRole = tokenResult.claims.role as string;
+        }
+        if (tokenResult.claims.status) {
+          effectiveStatus = tokenResult.claims.status as string;
+        }
+      } catch (err) {
+        console.warn('[AuthContext] Error reading claims for routing:', err);
+      }
+    }
+
+    if (effectiveStatus === 'SUSPENDED') {
       Alert.alert(
         'Account Suspended',
         'Your MahaSetu account has been suspended by an administrator. Please contact official administrative support.'
@@ -112,7 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    if (profile.status === 'REJECTED') {
+    if (effectiveStatus === 'REJECTED') {
       Alert.alert(
         'Registration Rejected',
         'Your registration was reviewed and rejected. Please contact an administrator for more information.'
@@ -122,15 +145,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     if (
-      profile.status === 'PENDING' ||
-      profile.role === 'pending' ||
-      !profile.role
+      effectiveStatus === 'PENDING' ||
+      effectiveRole === 'pending' ||
+      !effectiveRole
     ) {
       router.replace('/(pending)');
       return;
     }
 
-    const role = profile.role ? String(profile.role).toUpperCase() : '';
+    const role = String(effectiveRole).toUpperCase();
     switch (role) {
       case 'CITIZEN':
         router.replace('/(citizen)/(tabs)');

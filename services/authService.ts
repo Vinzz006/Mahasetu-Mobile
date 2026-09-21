@@ -2,6 +2,7 @@ import { auth, db, sanitizeFirestorePayload, assertNoUndefinedValues } from '../
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
@@ -130,6 +131,11 @@ export const authService = {
   async signUpWithEmail(email: string, password: string, displayName: string): Promise<UserProfile> {
     const cleanEmail = email.trim().toLowerCase();
     const result = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+    try {
+      await sendEmailVerification(result.user);
+    } catch (verifyErr) {
+      console.warn('sendEmailVerification failed or skipped:', verifyErr);
+    }
     const profile = await this.initializeNewUserRecord(result.user, displayName.trim());
     return profile;
   },
@@ -503,7 +509,7 @@ export const authService = {
 
   /**
    * Admin approves a pending user and assigns role
-   * Calls: POST /api/v1/admin/user-approvals/:uid/approve or updates Firestore directly
+   * Calls: POST /api/v1/admin/user-approvals/:uid/approve
    */
   async approvePendingUser(
     targetUid: string,
@@ -518,23 +524,14 @@ export const authService = {
 
     const cleanDeptId = isDeptOfficer ? (departmentId || null) : null;
 
-    try {
-      await api.post(`/api/v1/admin/user-approvals/${targetUid}/approve`, {
-        role: assignedRole,
-        departmentId: cleanDeptId,
-      });
-    } catch (backendError) {
-      console.warn('Backend approval endpoint failed, updating Firestore directly:', backendError);
-      const userRef = doc(db, 'users', targetUid);
-      const updateData = sanitizeFirestorePayload({
-        role: assignedRole,
-        departmentId: cleanDeptId,
-        status: 'APPROVED',
-        isActive: true,
-        updatedAt: serverTimestamp(),
-      });
-      assertNoUndefinedValues(updateData, `users/${targetUid}`);
-      await setDoc(userRef, updateData, { merge: true });
+    await api.post(`/api/v1/admin/user-approvals/${targetUid}/approve`, {
+      role: assignedRole,
+      departmentId: cleanDeptId,
+    });
+
+    // Refresh claims if currently signed in user was modified
+    if (auth.currentUser?.uid === targetUid) {
+      await auth.currentUser.getIdToken(true);
     }
 
     // Append to immutable audit log
@@ -553,19 +550,7 @@ export const authService = {
    * Admin rejects a pending user
    */
   async rejectPendingUser(targetUid: string, reason?: string): Promise<void> {
-    try {
-      await api.post(`/api/v1/admin/user-approvals/${targetUid}/reject`, { reason });
-    } catch {
-      const userRef = doc(db, 'users', targetUid);
-      const updateData = sanitizeFirestorePayload({
-        status: 'REJECTED',
-        isActive: false,
-        rejectionReason: reason || 'Application rejected by administrator',
-        updatedAt: serverTimestamp(),
-      });
-      assertNoUndefinedValues(updateData, `users/${targetUid}`);
-      await setDoc(userRef, updateData, { merge: true });
-    }
+    await api.post(`/api/v1/admin/user-approvals/${targetUid}/reject`, { reason });
 
     // Append to immutable audit log
     await auditService.logAction({
@@ -583,38 +568,7 @@ export const authService = {
    * Admin verifies citizen identity status
    */
   async verifyCitizenIdentity(targetUid: string, verified: boolean): Promise<void> {
-    try {
-      await api.post(`/api/v1/admin/citizens/${targetUid}/verify`, { verified });
-    } catch {
-      const userRef = doc(db, 'users', targetUid);
-      const updateData = sanitizeFirestorePayload({
-        isVerified: verified,
-        identityStatus: verified ? 'VERIFIED' : 'REJECTED',
-        verifiedAt: serverTimestamp(),
-        verifiedBy: auth.currentUser?.uid || 'admin',
-        updatedAt: serverTimestamp(),
-      });
-      assertNoUndefinedValues(updateData, `users/${targetUid}`);
-      await setDoc(userRef, updateData, { merge: true });
-
-      // Also update residentProfiles if present
-      try {
-        const rpRef = doc(db, 'residentProfiles', targetUid);
-        const rpSnap = await getDoc(rpRef);
-        if (rpSnap.exists()) {
-          const rpUpdate = sanitizeFirestorePayload({
-            certificationStatus: verified ? 'VERIFIED' : 'REJECTED',
-            certifiedAt: serverTimestamp(),
-            certifiedBy: auth.currentUser?.uid || 'admin',
-            updatedAt: serverTimestamp(),
-          });
-          assertNoUndefinedValues(rpUpdate, `residentProfiles/${targetUid}`);
-          await setDoc(rpRef, rpUpdate, { merge: true });
-        }
-      } catch (rpErr: any) {
-        console.warn('residentProfiles update warning during certification:', rpErr.message);
-      }
-    }
+    await api.post(`/api/v1/admin/citizens/${targetUid}/verify`, { verified });
 
     // Append to immutable audit log
     await auditService.logAction({

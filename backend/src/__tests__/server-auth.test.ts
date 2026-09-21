@@ -13,6 +13,8 @@ describe('Backend Server Authentication & Security Tests', () => {
   const originalVerifyIdToken = adminAuth.verifyIdToken.bind(adminAuth);
   const originalRunTransaction = adminDb.runTransaction.bind(adminDb);
   const originalBatch = adminDb.batch.bind(adminDb);
+  const originalCollection = adminDb.collection.bind(adminDb);
+  const originalSetCustomUserClaims = adminAuth.setCustomUserClaims.bind(adminAuth);
   const originalSendSms = twilioBackendService.sendApplicationStatusSms.bind(twilioBackendService);
 
   before(async () => {
@@ -35,8 +37,10 @@ describe('Backend Server Authentication & Security Tests', () => {
 
   after(async () => {
     adminAuth.verifyIdToken = originalVerifyIdToken;
+    adminAuth.setCustomUserClaims = originalSetCustomUserClaims;
     adminDb.runTransaction = originalRunTransaction;
     adminDb.batch = originalBatch;
+    adminDb.collection = originalCollection;
     twilioBackendService.sendApplicationStatusSms = originalSendSms;
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
@@ -281,4 +285,104 @@ describe('Backend Server Authentication & Security Tests', () => {
     const data = await res.json();
     assert.strictEqual(data.status, 'healthy');
   });
+
+  it('10. Rejects non-admin attempting user approval with 403 Forbidden', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_attacker_1',
+      email: 'citizen@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/admin/user-approvals/target_user_1/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_citizen_token',
+      },
+      body: JSON.stringify({ role: 'DEPARTMENT_A', departmentId: 'DEPT_A' }),
+    });
+
+    assert.strictEqual(res.status, 403);
+    const data = await res.json();
+    assert.strictEqual(data.error.includes('Forbidden'), true);
+  });
+
+  it('11. Rejects admin attempting self-approval or self-role change with 400 Bad Request', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user_1',
+      email: 'admin@mahasetu.gov.in',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/admin/user-approvals/admin_user_1/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_admin_token',
+      },
+      body: JSON.stringify({ role: 'ADMIN' }),
+    });
+
+    assert.strictEqual(res.status, 400);
+    const data = await res.json();
+    assert.strictEqual(data.error.includes('Self-approval or self-role assignment is prohibited'), true);
+  });
+
+  it('12. Admin successfully approves user and assigns signed custom claims', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user_1',
+      email: 'admin@mahasetu.gov.in',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    let assignedClaims: any = null;
+    let savedFirestoreData: any = null;
+
+    (adminAuth as any).setCustomUserClaims = async (uid: string, claims: any) => {
+      assignedClaims = { uid, claims };
+    };
+
+    (adminDb as any).collection = (colName: string) => ({
+      doc: (docId: string) => ({
+        set: async (data: any) => {
+          savedFirestoreData = { colName, docId, data };
+        },
+      }),
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/admin/user-approvals/target_dept_officer/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_admin_token',
+      },
+      body: JSON.stringify({ role: 'DEPARTMENT_A', departmentId: 'DEPT_A' }),
+    });
+
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+
+    // Verify custom claims set via Admin Auth
+    assert.ok(assignedClaims, 'Must call setCustomUserClaims');
+    assert.strictEqual(assignedClaims.uid, 'target_dept_officer');
+    assert.strictEqual(assignedClaims.claims.role, 'DEPARTMENT_A');
+    assert.strictEqual(assignedClaims.claims.departmentId, 'DEPT_A');
+    assert.strictEqual(assignedClaims.claims.status, 'APPROVED');
+
+    // Verify Firestore updated
+    assert.ok(savedFirestoreData, 'Must write to users collection');
+    assert.strictEqual(savedFirestoreData.colName, 'users');
+    assert.strictEqual(savedFirestoreData.docId, 'target_dept_officer');
+    assert.strictEqual(savedFirestoreData.data.role, 'DEPARTMENT_A');
+    assert.strictEqual(savedFirestoreData.data.status, 'APPROVED');
+    assert.strictEqual(savedFirestoreData.data.approvedBy, 'admin_user_1');
+  });
 });
+
