@@ -80,6 +80,19 @@ export const auth: Auth = getOrInitializeAuth();
 export const db: Firestore = getFirestore(app);
 export const storage: FirebaseStorage = getStorage(app);
 
+// Optional Firebase App Check initialization (client web/mobile)
+if (typeof window !== 'undefined' && process.env.EXPO_PUBLIC_APP_CHECK_KEY) {
+  try {
+    const { initializeAppCheck, ReCaptchaV3Provider } = require('firebase/app-check');
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(process.env.EXPO_PUBLIC_APP_CHECK_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (appCheckErr: any) {
+    console.warn('[Firebase] App Check initialization note:', appCheckErr?.message || appCheckErr);
+  }
+}
+
 /**
  * Recursively sanitizes Firestore write payloads to prevent `undefined` field errors.
  * Replaces `undefined` values with `null` for non-applicable / optional fields,

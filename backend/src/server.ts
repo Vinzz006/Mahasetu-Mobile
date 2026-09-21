@@ -17,6 +17,8 @@ import { sanitizeFirestorePayload, assertNoUndefinedValues } from './lib/firesto
 import { twilioBackendService } from './notifications/twilio.service';
 import { APPLICATION_EVENTS, getSmsMessage } from './notifications/events';
 import { geminiService } from './services/gemini.service';
+import { logger } from './lib/logger';
+import { verifyAppCheck } from './lib/appCheck';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -238,6 +240,10 @@ export function createBackendServer(): http.Server {
         sendJson(res, 200, { status: 'healthy', timestamp: new Date().toISOString() });
         return;
       }
+
+      // 0b. Firebase App Check Token Validation
+      const appCheckPassed = await verifyAppCheck(req, res, requestId);
+      if (!appCheckPassed) return;
 
       // Read Body for write methods
       let body: any = {};
@@ -979,7 +985,14 @@ export function createBackendServer(): http.Server {
           updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
 
-        console.log(`[Admin Audit] Admin ${claims.uid} approved user ${targetUid} with role ${role} (dept: ${departmentId})`);
+        logger.audit({
+          event: 'ADMIN_USER_APPROVED',
+          action: 'approve_user_and_set_claims',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+          details: { assignedRole: role, departmentId },
+        });
         sendJson(res, 200, { success: true, message: `User ${targetUid} approved with role ${role}.` });
         return;
       }
@@ -1017,7 +1030,14 @@ export function createBackendServer(): http.Server {
           updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
 
-        console.log(`[Admin Audit] Admin ${claims.uid} rejected user ${targetUid}: ${reason}`);
+        logger.audit({
+          event: 'ADMIN_USER_REJECTED',
+          action: 'reject_user_and_revoke_claims',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+          details: { reason },
+        });
         sendJson(res, 200, { success: true, message: `User ${targetUid} rejected.` });
         return;
       }
@@ -1052,7 +1072,14 @@ export function createBackendServer(): http.Server {
           }, { merge: true });
         }
 
-        console.log(`[Admin Audit] Admin ${claims.uid} set citizen ${targetUid} verification to ${isVerified}`);
+        logger.audit({
+          event: 'ADMIN_CITIZEN_VERIFIED',
+          action: 'certify_citizen_identity',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+          details: { isVerified },
+        });
         sendJson(res, 200, { success: true, isVerified });
         return;
       }
