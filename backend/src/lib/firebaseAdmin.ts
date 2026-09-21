@@ -1,6 +1,6 @@
 import { initializeApp, getApps, cert, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp, Transaction, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { getAppCheck } from 'firebase-admin/app-check';
 import * as fs from 'fs';
 
@@ -46,5 +46,5 @@ if (!getApps().length) {
 export const adminAuth = getAuth();
 export const adminDb = getFirestore();
 export const adminAppCheck = getAppCheck();
-export { FieldValue, Timestamp };
+export { FieldValue, Timestamp, Transaction, QueryDocumentSnapshot };
 

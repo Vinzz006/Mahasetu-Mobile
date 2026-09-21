@@ -11,7 +11,7 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
-import { adminDb, FieldValue } from '../lib/firebaseAdmin';
+import { adminDb, FieldValue, QueryDocumentSnapshot } from '../lib/firebaseAdmin';
 import { sanitizeFirestorePayload, assertNoUndefinedValues } from '../lib/firestoreUtils';
 import { conversationStore } from './conversationStore';
 
@@ -174,7 +174,7 @@ export class GeminiService {
         const vRef = adminDb.collection('applicationVerifications');
         const vSnaps = await vRef.where('applicationId', '==', appId).get();
 
-        vSnaps.forEach((d) => {
+        vSnaps.forEach((d: QueryDocumentSnapshot) => {
           const vd = d.data();
           const role = (vd.verifierRole || vd.verifierKey || '').toUpperCase();
           if (role.includes('DEPARTMENT_A') || vd.departmentId === 'DEPARTMENT_A' || vd.departmentId === 'DEPT_A') {
@@ -441,7 +441,7 @@ Strict Security Boundaries (Zero Leak):
         const snaps = await messagesRef.orderBy('createdAt', 'asc').limit(30).get();
 
         const fsMessages: { id: string; role: 'user' | 'assistant'; content: string; createdAt: string }[] = [];
-        snaps.forEach((docSnap) => {
+        snaps.forEach((docSnap: QueryDocumentSnapshot) => {
           const d = docSnap.data();
           // STRICT EQUALITY: require d.userId === userId. Never accept missing userId or foreign userId.
           if (d.role && d.content && d.userId === userId) {
@@ -490,7 +490,7 @@ Strict Security Boundaries (Zero Leak):
       const snaps = await messagesRef.orderBy('createdAt', 'asc').limit(maxMessages).get();
 
       const history: { role: string; content: string }[] = [];
-      snaps.forEach((docSnap) => {
+      snaps.forEach((docSnap: QueryDocumentSnapshot) => {
         const d = docSnap.data();
         // STRICT: Message MUST have userId === userId. Never accept !d.userId.
         if (d.role && d.content && d.userId === userId) {

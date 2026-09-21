@@ -12,7 +12,7 @@ dotenv.config();
 
 import * as http from 'http';
 import * as crypto from 'crypto';
-import { adminAuth, adminDb, FieldValue } from './lib/firebaseAdmin';
+import { adminAuth, adminDb, FieldValue, Transaction } from './lib/firebaseAdmin';
 import { sanitizeFirestorePayload, assertNoUndefinedValues } from './lib/firestoreUtils';
 import { twilioBackendService } from './notifications/twilio.service';
 import { APPLICATION_EVENTS, getSmsMessage } from './notifications/events';
@@ -522,7 +522,7 @@ export function createBackendServer(): http.Server {
         const vRef = adminDb.collection('applicationVerifications').doc(vDocId);
 
         // Execute in a Firestore transaction for atomic slot decision and recount
-        const txResult = await adminDb.runTransaction(async (transaction) => {
+        const txResult = await adminDb.runTransaction(async (transaction: Transaction) => {
           const appDoc = await transaction.get(appRef);
           if (!appDoc.exists) {
             return { notFound: true };
@@ -710,7 +710,7 @@ export function createBackendServer(): http.Server {
         const vDocId = `${appId}_${docSuffix}`;
         const vRef = adminDb.collection('applicationVerifications').doc(vDocId);
 
-        const txResult = await adminDb.runTransaction(async (transaction) => {
+        const txResult = await adminDb.runTransaction(async (transaction: Transaction) => {
           const appDoc = await transaction.get(appRef);
           if (!appDoc.exists) {
             return { notFound: true };

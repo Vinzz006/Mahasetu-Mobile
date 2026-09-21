@@ -7,6 +7,13 @@ export interface DemoUser {
   role: 'citizen' | 'department_officer' | 'admin' | 'auditor';
   departmentId?: 'DEPT_A' | 'DEPT_B' | 'DEPT_C' | null;
   status: 'APPROVED' | 'PENDING' | 'REJECTED';
+  phone?: string;
+  city?: string;
+  district?: string;
+  state?: string;
+  pinCode?: string;
+  aadhaarRef?: string;
+  isVerified?: boolean;
 }
 
 // Demo credentials must only be loaded from environment variables in local development
