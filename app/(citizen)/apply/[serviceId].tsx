@@ -174,24 +174,24 @@ export default function ApplyWizardScreen() {
 
             <FormInput
               label="Full Legal Name"
-              value={user?.name || 'Anusha G.'}
+              value={user?.name || ''}
               isReadOnly={true}
               hint="Verified via MahaSetu Identity Registry"
             />
             <FormInput
               label="Aadhaar Reference"
-              value={user?.aadhaarRef || 'XXXX-XXXX-4589'}
+              value={user?.aadhaarRef || ''}
               isReadOnly={true}
               hint="Tokenized resident identity"
             />
             <FormInput
               label="Registered Mobile Number"
-              value={user?.phone || '+919876543210'}
+              value={user?.phone || ''}
               isReadOnly={true}
             />
             <FormInput
               label="Permanent Resident Address"
-              value={`${user?.city || 'Mumbai'}, ${user?.district || 'Mumbai Suburban'}, ${user?.state || 'Maharashtra'} - ${user?.pinCode || '400001'}`}
+              value={user?.city ? `${user.city}${user.district ? ', ' + user.district : ''}${user.state ? ', ' + user.state : ''}${user.pinCode ? ' - ' + user.pinCode : ''}` : ''}
               isReadOnly={true}
               multiline
             />

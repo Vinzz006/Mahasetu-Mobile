@@ -34,23 +34,23 @@ console.log('======================================================\n');
 
 // 1. DEMO ACCOUNTS PRESERVATION (Section 7)
 console.log('[Test Suite 1: Demo Accounts Preservation]');
-const anusha = DEMO_USERS.find((u) => u.name.includes('Anusha'));
-assert(anusha?.role === 'citizen' && anusha.status === 'APPROVED', 'Anusha is Citizen with APPROVED status');
+const priya = DEMO_USERS.find((u) => u.name.includes('Priya'));
+assert(priya?.role === 'citizen' && priya.status === 'APPROVED', 'Priya is Citizen with APPROVED status');
 
-const vinesh = DEMO_USERS.find((u) => u.name.includes('Vinesh'));
-assert(vinesh?.role === 'department_officer' && vinesh?.departmentId === 'DEPT_A', 'Vinesh is Department Officer for DEPT_A');
+const ramesh = DEMO_USERS.find((u) => u.name.includes('Ramesh'));
+assert(ramesh?.role === 'department_officer' && ramesh?.departmentId === 'DEPT_A', 'Ramesh is Department Officer for DEPT_A');
 
-const sai = DEMO_USERS.find((u) => u.name.includes('Sai'));
-assert(sai?.role === 'department_officer' && sai?.departmentId === 'DEPT_B', 'Sai is Department Officer for DEPT_B');
+const suresh = DEMO_USERS.find((u) => u.name.includes('Suresh'));
+assert(suresh?.role === 'department_officer' && suresh?.departmentId === 'DEPT_B', 'Suresh is Department Officer for DEPT_B');
 
-const omesh = DEMO_USERS.find((u) => u.name.includes('Omesh'));
-assert(omesh?.role === 'department_officer' && omesh?.departmentId === 'DEPT_C', 'Omesh is Department Officer for DEPT_C');
+const mahesh = DEMO_USERS.find((u) => u.name.includes('Mahesh'));
+assert(mahesh?.role === 'department_officer' && mahesh?.departmentId === 'DEPT_C', 'Mahesh is Department Officer for DEPT_C');
 
-const tammu = DEMO_USERS.find((u) => u.name.includes('Tammu'));
-assert(tammu?.role === 'admin' && tammu.status === 'APPROVED', 'Tammu is Admin');
+const anil = DEMO_USERS.find((u) => u.name.includes('Anil'));
+assert(anil?.role === 'admin' && anil.status === 'APPROVED', 'Anil is Admin');
 
-const tanushri = DEMO_USERS.find((u) => u.name.includes('Tanushri'));
-assert(tanushri?.role === 'auditor' && tanushri.status === 'APPROVED', 'Tanushri is Compliance Auditor');
+const neha = DEMO_USERS.find((u) => u.name.includes('Neha'));
+assert(neha?.role === 'auditor' && neha.status === 'APPROVED', 'Neha is Compliance Auditor');
 
 // 2. NEW USER LIFECYCLE & PENDING GATING (Section 5, 8, 9)
 console.log('\n[Test Suite 2: New User Registration Gating]');
@@ -255,11 +255,11 @@ function simulateApplicationSubmission(citizenUser: any) {
   };
 
   const verifiers = [
-    { key: 'DEPARTMENT_A', docSuffix: 'department_a', name: 'Revenue & Civil Supplies', role: 'DEPARTMENT_A', deptId: 'DEPARTMENT_A', verifierId: 'demo-vinesh' },
-    { key: 'DEPARTMENT_B', docSuffix: 'department_b', name: 'Social Welfare & Inclusion', role: 'DEPARTMENT_B', deptId: 'DEPARTMENT_B', verifierId: 'demo-sai' },
-    { key: 'DEPARTMENT_C', docSuffix: 'department_c', name: 'Labour & Employment Welfare', role: 'DEPARTMENT_C', deptId: 'DEPARTMENT_C', verifierId: 'demo-omesh' },
-    { key: 'ADMIN', docSuffix: 'admin', name: 'MahaSetu State Administrator', role: 'ADMIN', deptId: null, verifierId: 'demo-tammu' },
-    { key: 'AUDITOR', docSuffix: 'auditor', name: 'Independent Compliance Auditor', role: 'AUDITOR', deptId: null, verifierId: 'demo-tanushri' },
+    { key: 'DEPARTMENT_A', docSuffix: 'department_a', name: 'Revenue & Civil Supplies', role: 'DEPARTMENT_A', deptId: 'DEPARTMENT_A', verifierId: 'demo-ramesh' },
+    { key: 'DEPARTMENT_B', docSuffix: 'department_b', name: 'Social Welfare & Inclusion', role: 'DEPARTMENT_B', deptId: 'DEPARTMENT_B', verifierId: 'demo-suresh' },
+    { key: 'DEPARTMENT_C', docSuffix: 'department_c', name: 'Labour & Employment Welfare', role: 'DEPARTMENT_C', deptId: 'DEPARTMENT_C', verifierId: 'demo-mahesh' },
+    { key: 'ADMIN', docSuffix: 'admin', name: 'MahaSetu State Administrator', role: 'ADMIN', deptId: null, verifierId: 'demo-anil' },
+    { key: 'AUDITOR', docSuffix: 'auditor', name: 'Independent Compliance Auditor', role: 'AUDITOR', deptId: null, verifierId: 'demo-neha' },
   ];
 
   const verificationDocs: Record<string, any> = {};
@@ -288,7 +288,7 @@ function simulateApplicationSubmission(citizenUser: any) {
   };
 }
 
-const mockCitizen = DEMO_USERS.find((u) => u.role === 'citizen') || { uid: 'demo-anusha', name: 'Anusha G.' };
+const mockCitizen = DEMO_USERS.find((u) => u.role === 'citizen') || { uid: 'demo-priya', name: 'Priya Sharma' };
 const submission = simulateApplicationSubmission(mockCitizen);
 
 // TEST 1: Citizen submits application
@@ -429,16 +429,16 @@ assert(config.firebase.storageBucket.includes('mahasetu-mobile-app') || config.f
 assert(config.firebase.authDomain.includes('mahasetu-mobile-app') || config.firebase.authDomain.includes('mahasetu--mobile-app'), 'TEST A.3: Auth domain is mahasetu-mobile-app.firebaseapp.com');
 
 const requiredNames = [
-  'Anusha G.',
-  'Muthumayil M.',
-  'Akshita S S',
-  'Kanimozhi N',
-  'Vinesh S',
-  'Sai Sharavan G',
-  'Omesh Kaarthik S U',
-  'Tammu Vedesh Kumar',
-  'Shanmugam K',
-  'Tanushri S',
+  'Priya Sharma',
+  'Rahul Verma',
+  'Sneha Patil',
+  'Pooja Kulkarni',
+  'Ramesh Kumar',
+  'Suresh Joshi',
+  'Mahesh Deshmukh',
+  'Anil Shinde',
+  'Vijay Patil',
+  'Neha Deshpande',
 ];
 requiredNames.forEach((name) => {
   const found = DEMO_USERS.some((u) => u.name === name);
@@ -497,11 +497,11 @@ function simulateAdminCitizenCertification(adminRole: string, citizenUid: string
     verifiedBy: 'admin_state_gov',
   };
 }
-const certResult = simulateAdminCitizenCertification('ADMIN', 'citizen_anusha');
+const certResult = simulateAdminCitizenCertification('ADMIN', 'citizen_priya');
 assert(certResult.isVerified === true, 'TEST E.1: Admin successfully certifies citizen identity');
 let certBlocked = false;
 try {
-  simulateAdminCitizenCertification('CITIZEN', 'citizen_anusha');
+  simulateAdminCitizenCertification('CITIZEN', 'citizen_priya');
 } catch {
   certBlocked = true;
 }
@@ -640,11 +640,11 @@ function evaluateRules(context: SecurityContext) {
 
 // Actors for tests A through M
 const approvedCitizenContext: SecurityContext = {
-  auth: { uid: 'uid_anusha' },
+  auth: { uid: 'uid_priya' },
   userDoc: {
-    uid: 'uid_anusha',
-    displayName: 'Anusha G.',
-    email: 'anusha@mahasetu.gov.in',
+    uid: 'uid_priya',
+    displayName: 'Priya Sharma',
+    email: 'citizen.priya@mahasetu.gov.in',
     role: 'CITIZEN',
     status: 'APPROVED',
     departmentId: null,
@@ -676,11 +676,11 @@ const rejectedCitizenContext: SecurityContext = {
 };
 
 const deptAOfficerContext: SecurityContext = {
-  auth: { uid: 'uid_vinesh' },
+  auth: { uid: 'uid_ramesh' },
   userDoc: {
-    uid: 'uid_vinesh',
-    displayName: 'Vinesh S',
-    email: 'vinesh@mahasetu.gov.in',
+    uid: 'uid_ramesh',
+    displayName: 'Ramesh Kumar',
+    email: 'officer.dept_a@mahasetu.gov.in',
     role: 'DEPARTMENT_A',
     status: 'APPROVED',
     departmentId: 'DEPARTMENT_A',
@@ -688,11 +688,11 @@ const deptAOfficerContext: SecurityContext = {
 };
 
 const deptBOfficerContext: SecurityContext = {
-  auth: { uid: 'uid_sai' },
+  auth: { uid: 'uid_suresh' },
   userDoc: {
-    uid: 'uid_sai',
-    displayName: 'Sai Sharavan G',
-    email: 'sai@mahasetu.gov.in',
+    uid: 'uid_suresh',
+    displayName: 'Suresh Joshi',
+    email: 'officer.dept_b@mahasetu.gov.in',
     role: 'DEPARTMENT_B',
     status: 'APPROVED',
     departmentId: 'DEPARTMENT_B',
@@ -700,11 +700,11 @@ const deptBOfficerContext: SecurityContext = {
 };
 
 const deptCOfficerContext: SecurityContext = {
-  auth: { uid: 'uid_omesh' },
+  auth: { uid: 'uid_mahesh' },
   userDoc: {
-    uid: 'uid_omesh',
-    displayName: 'Omesh Kaarthik S U',
-    email: 'omesh@mahasetu.gov.in',
+    uid: 'uid_mahesh',
+    displayName: 'Mahesh Deshmukh',
+    email: 'officer.dept_c@mahasetu.gov.in',
     role: 'DEPARTMENT_C',
     status: 'APPROVED',
     departmentId: 'DEPARTMENT_C',
@@ -712,11 +712,11 @@ const deptCOfficerContext: SecurityContext = {
 };
 
 const adminContext: SecurityContext = {
-  auth: { uid: 'uid_tammu' },
+  auth: { uid: 'uid_anil' },
   userDoc: {
-    uid: 'uid_tammu',
-    displayName: 'Tammu Vedesh Kumar',
-    email: 'tammu@mahasetu.gov.in',
+    uid: 'uid_anil',
+    displayName: 'Anil Shinde',
+    email: 'admin.onboarding@mahasetu.gov.in',
     role: 'ADMIN',
     status: 'APPROVED',
     departmentId: null,
@@ -724,11 +724,11 @@ const adminContext: SecurityContext = {
 };
 
 const auditorContext: SecurityContext = {
-  auth: { uid: 'uid_tanushri' },
+  auth: { uid: 'uid_neha' },
   userDoc: {
-    uid: 'uid_tanushri',
-    displayName: 'Tanushri S',
-    email: 'tanushri@mahasetu.gov.in',
+    uid: 'uid_neha',
+    displayName: 'Neha Deshpande',
+    email: 'auditor.compliance@mahasetu.gov.in',
     role: 'AUDITOR',
     status: 'APPROVED',
     departmentId: null,
@@ -738,7 +738,7 @@ const auditorContext: SecurityContext = {
 // TEST A: Approved Citizen submits own application -> MUST PASS
 const testA_Rules = evaluateRules(approvedCitizenContext);
 assert(
-  testA_Rules.canCreateApplication({ citizenId: 'uid_anusha', citizenUid: 'uid_anusha' }) === true,
+  testA_Rules.canCreateApplication({ citizenId: 'uid_priya', citizenUid: 'uid_priya' }) === true,
   'TEST A: Approved Citizen submits own application -> MUST PASS'
 );
 
@@ -764,7 +764,7 @@ assert(
 
 // TEST E: Citizen reads own application -> MUST PASS
 assert(
-  testA_Rules.canReadApplication({ citizenId: 'uid_anusha' }) === true,
+  testA_Rules.canReadApplication({ citizenId: 'uid_priya' }) === true,
   'TEST E: Citizen reads own application -> MUST PASS'
 );
 

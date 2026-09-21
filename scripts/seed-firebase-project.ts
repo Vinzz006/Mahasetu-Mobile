@@ -254,9 +254,9 @@ async function seedPersonas() {
   }
 
   console.log('\n--- Phase 2: Authenticating as Administrator to Write Firestore Documents ---');
-  const adminPassword = getPasswordForPersona('tammu.admin@mahasetu.gov.in');
-  const adminCred = await signInWithEmailAndPassword(auth, 'tammu.admin@mahasetu.gov.in', adminPassword);
-  console.log(`[ADMIN AUTH ACTIVE] Tammu Vedesh Kumar (${adminCred.user.uid})`);
+  const adminPassword = getPasswordForPersona('admin.onboarding@mahasetu.gov.in');
+  const adminCred = await signInWithEmailAndPassword(auth, 'admin.onboarding@mahasetu.gov.in', adminPassword);
+  console.log(`[ADMIN AUTH ACTIVE] Anil Shinde (${adminCred.user.uid})`);
 
   for (const persona of PERSONAS) {
     const uid = uids[persona.email];

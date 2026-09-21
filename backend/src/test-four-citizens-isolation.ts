@@ -2,13 +2,13 @@
  * Four Citizen & Multi-User Isolation Automated Test Suite
  *
  * Tests:
- * 1. Anusha G. login, chats twice.
- * 2. Muthumayil M. login, verifies history is isolated (zero Anusha messages), chats.
- * 3. Anusha G. relogin, verifies previous conversation intact with zero Muthumayil messages.
- * 4. Akshita S S login, chats independently.
- * 5. Kanimozhi N login, chats independently.
- * 6. Attack simulation: Muthumayil attempts to pass Anusha's conversationId -> must return 403.
- * 7. Attack simulation: Akshita attempts to query Anusha's history -> must return 403.
+ * 1. Priya Sharma login, chats twice.
+ * 2. Rahul Verma login, verifies history is isolated (zero Priya messages), chats.
+ * 3. Priya Sharma relogin, verifies previous conversation intact with zero Rahul messages.
+ * 4. Sneha Patil login, chats independently.
+ * 5. Pooja Kulkarni login, chats independently.
+ * 6. Attack simulation: Rahul attempts to pass Priya's conversationId -> must return 403.
+ * 7. Attack simulation: Sneha attempts to query Priya's history -> must return 403.
  * 8. Automatic new citizen test: simulates new citizen UID -> empty isolated history.
  */
 
@@ -28,10 +28,10 @@ interface CitizenTestConfig {
 }
 
 const CITIZENS: CitizenTestConfig[] = [
-  { name: 'Anusha G.', email: 'anusha@mahasetu.gov.in', message: 'What is consent?' },
-  { name: 'Muthumayil M.', email: 'muthumayil@mahasetu.gov.in', message: 'How does MahaSetu protect privacy?' },
-  { name: 'Akshita S S', email: 'akshita@mahasetu.gov.in', message: 'Where is my application?' },
-  { name: 'Kanimozhi N', email: 'kanimozhi@mahasetu.gov.in', message: 'What happens after verification?' },
+  { name: 'Priya Sharma', email: 'citizen.priya@mahasetu.gov.in', message: 'What is consent?' },
+  { name: 'Rahul Verma', email: 'citizen.rahul@mahasetu.gov.in', message: 'How does MahaSetu protect privacy?' },
+  { name: 'Sneha Patil', email: 'citizen.sneha@mahasetu.gov.in', message: 'Where is my application?' },
+  { name: 'Pooja Kulkarni', email: 'citizen.pooja@mahasetu.gov.in', message: 'What happens after verification?' },
 ];
 
 async function loginAndGetToken(email: string): Promise<{ uid: string; token: string }> {
@@ -87,85 +87,85 @@ async function runAllTests() {
   }
 
   // ==========================================================
-  // PHASE 1: Anusha G. Login & Initial Chats
+  // PHASE 1: Priya Sharma Login & Initial Chats
   // ==========================================================
-  console.log('--- Phase 1: Anusha G. Initial Conversation ---');
-  const anushaAuth = await loginAndGetToken('anusha@mahasetu.gov.in');
-  console.log(`Anusha authenticated. UID: ${anushaAuth.uid}`);
+  console.log('--- Phase 1: Priya Sharma Initial Conversation ---');
+  const priyaAuth = await loginAndGetToken('citizen.priya@mahasetu.gov.in');
+  console.log(`Priya authenticated. UID: ${priyaAuth.uid}`);
 
-  const anushaMsg1 = await chat(anushaAuth.token, 'What is Submit Once?');
-  assert(anushaMsg1.status === 200, 'Anusha first message succeeded (200)');
-  const anushaConvId = anushaMsg1.data.conversationId;
-  assert(!!anushaConvId, `Anusha received conversationId: ${anushaConvId}`);
-  assert(anushaConvId.includes(anushaAuth.uid), 'Anusha conversationId is scoped to her UID');
+  const priyaMsg1 = await chat(priyaAuth.token, 'What is Submit Once?');
+  assert(priyaMsg1.status === 200, 'Priya first message succeeded (200)');
+  const priyaConvId = priyaMsg1.data.conversationId;
+  assert(!!priyaConvId, `Priya received conversationId: ${priyaConvId}`);
+  assert(priyaConvId.includes(priyaAuth.uid), 'Priya conversationId is scoped to her UID');
 
   // Small delay to ensure distinct timestamps
   await new Promise((r) => setTimeout(r, 1000));
 
-  const anushaMsg2 = await chat(anushaAuth.token, 'Track my application.', anushaConvId);
-  assert(anushaMsg2.status === 200, 'Anusha second message succeeded (200)');
+  const priyaMsg2 = await chat(priyaAuth.token, 'Track my application.', priyaConvId);
+  assert(priyaMsg2.status === 200, 'Priya second message succeeded (200)');
 
-  const anushaHist1 = await getHistory(anushaAuth.token, anushaConvId);
-  assert(anushaHist1.status === 200, 'Anusha history fetched successfully');
-  assert(anushaHist1.data.messages.length >= 4, `Anusha has >= 4 messages (found: ${anushaHist1.data.messages.length})`);
+  const priyaHist1 = await getHistory(priyaAuth.token, priyaConvId);
+  assert(priyaHist1.status === 200, 'Priya history fetched successfully');
+  assert(priyaHist1.data.messages.length >= 4, `Priya has >= 4 messages (found: ${priyaHist1.data.messages.length})`);
   assert(
-    anushaHist1.data.messages.some((m: any) => m.content === 'What is Submit Once?'),
-    'Anusha history contains "What is Submit Once?"'
+    priyaHist1.data.messages.some((m: any) => m.content === 'What is Submit Once?'),
+    'Priya history contains "What is Submit Once?"'
   );
   assert(
-    anushaHist1.data.messages.some((m: any) => m.content === 'Track my application.'),
-    'Anusha history contains "Track my application."'
-  );
-
-  // ==========================================================
-  // PHASE 2: Logout Anusha -> Login Muthumayil M.
-  // ==========================================================
-  console.log('\n--- Phase 2: Muthumayil M. Isolation Check & Chat ---');
-  const muthuAuth = await loginAndGetToken('muthumayil@mahasetu.gov.in');
-  console.log(`Muthumayil authenticated. UID: ${muthuAuth.uid}`);
-  assert(muthuAuth.uid !== anushaAuth.uid, 'Muthumayil UID is distinct from Anusha UID');
-
-  // Muthumayil checks her history before sending any message
-  const muthuInitialHist = await getHistory(muthuAuth.token);
-  assert(muthuInitialHist.status === 200, 'Muthumayil initial history request returned 200');
-  const muthuInitialMessages = muthuInitialHist.data.messages || [];
-  assert(
-    !muthuInitialMessages.some((m: any) => m.content.includes('Track my application.')),
-    'CRITICAL: Muthumayil CANNOT see Anusha\'s "Track my application" message'
-  );
-  assert(
-    !muthuInitialMessages.some((m: any) => m.content.includes('What is Submit Once?')),
-    'CRITICAL: Muthumayil CANNOT see Anusha\'s prior messages'
-  );
-
-  // Muthumayil sends her first message
-  const muthuMsg1 = await chat(muthuAuth.token, 'What is Submit Once?');
-  assert(muthuMsg1.status === 200, 'Muthumayil message succeeded (200)');
-  const muthuConvId = muthuMsg1.data.conversationId;
-  assert(!!muthuConvId, `Muthumayil received conversationId: ${muthuConvId}`);
-  assert(muthuConvId !== anushaConvId, 'CRITICAL: Muthumayil conversationId is DIFFERENT from Anusha conversationId');
-  assert(muthuConvId.includes(muthuAuth.uid), 'Muthumayil conversationId is scoped to her own UID');
-
-  const muthuHist = await getHistory(muthuAuth.token, muthuConvId);
-  assert(
-    !muthuHist.data.messages.some((m: any) => m.content === 'Track my application.'),
-    'Muthumayil history still does NOT contain Anusha\'s messages'
+    priyaHist1.data.messages.some((m: any) => m.content === 'Track my application.'),
+    'Priya history contains "Track my application."'
   );
 
   // ==========================================================
-  // PHASE 3: Logout Muthumayil -> Relogin Anusha G.
+  // PHASE 2: Logout Priya -> Login Rahul Verma
   // ==========================================================
-  console.log('\n--- Phase 3: Anusha G. Re-login Verification ---');
-  const anushaAuth2 = await loginAndGetToken('anusha@mahasetu.gov.in');
-  const anushaHist2 = await getHistory(anushaAuth2.token, anushaConvId);
-  assert(anushaHist2.status === 200, 'Anusha re-login history fetched successfully');
+  console.log('\n--- Phase 2: Rahul Verma Isolation Check & Chat ---');
+  const rahulAuth = await loginAndGetToken('citizen.rahul@mahasetu.gov.in');
+  console.log(`Rahul authenticated. UID: ${rahulAuth.uid}`);
+  assert(rahulAuth.uid !== priyaAuth.uid, 'Rahul UID is distinct from Priya UID');
+
+  // Rahul checks his history before sending any message
+  const rahulInitialHist = await getHistory(rahulAuth.token);
+  assert(rahulInitialHist.status === 200, 'Rahul initial history request returned 200');
+  const rahulInitialMessages = rahulInitialHist.data.messages || [];
   assert(
-    anushaHist2.data.messages.some((m: any) => m.content === 'Track my application.'),
-    'Anusha\'s original messages are fully preserved'
+    !rahulInitialMessages.some((m: any) => m.content.includes('Track my application.')),
+    'CRITICAL: Rahul CANNOT see Priya\'s "Track my application" message'
   );
   assert(
-    !anushaHist2.data.messages.some((m: any) => m.conversationId === muthuConvId),
-    'Anusha does NOT have any messages from Muthumayil\'s conversation'
+    !rahulInitialMessages.some((m: any) => m.content.includes('What is Submit Once?')),
+    'CRITICAL: Rahul CANNOT see Priya\'s prior messages'
+  );
+
+  // Rahul sends his first message
+  const rahulMsg1 = await chat(rahulAuth.token, 'What is Submit Once?');
+  assert(rahulMsg1.status === 200, 'Rahul message succeeded (200)');
+  const rahulConvId = rahulMsg1.data.conversationId;
+  assert(!!rahulConvId, `Rahul received conversationId: ${rahulConvId}`);
+  assert(rahulConvId !== priyaConvId, 'CRITICAL: Rahul conversationId is DIFFERENT from Priya conversationId');
+  assert(rahulConvId.includes(rahulAuth.uid), 'Rahul conversationId is scoped to his own UID');
+
+  const rahulHist = await getHistory(rahulAuth.token, rahulConvId);
+  assert(
+    !rahulHist.data.messages.some((m: any) => m.content === 'Track my application.'),
+    'Rahul history still does NOT contain Priya\'s messages'
+  );
+
+  // ==========================================================
+  // PHASE 3: Logout Rahul -> Relogin Priya Sharma
+  // ==========================================================
+  console.log('\n--- Phase 3: Priya Sharma Re-login Verification ---');
+  const priyaAuth2 = await loginAndGetToken('citizen.priya@mahasetu.gov.in');
+  const priyaHist2 = await getHistory(priyaAuth2.token, priyaConvId);
+  assert(priyaHist2.status === 200, 'Priya re-login history fetched successfully');
+  assert(
+    priyaHist2.data.messages.some((m: any) => m.content === 'Track my application.'),
+    'Priya\'s original messages are fully preserved'
+  );
+  assert(
+    !priyaHist2.data.messages.some((m: any) => m.conversationId === rahulConvId),
+    'Priya does NOT have any messages from Rahul\'s conversation'
   );
 
   // ==========================================================
@@ -216,18 +216,18 @@ async function runAllTests() {
   // ==========================================================
   console.log('\n--- Phase 5: Adversarial & Boundary Security Tests ---');
 
-  // Test 5A: Muthumayil tries to post to Anusha's conversationId
-  console.log('Testing Muthumayil attempting to post to Anusha\'s conversation...');
-  const unauthorizedPost = await chat(muthuAuth.token, 'I want Anusha\'s data', anushaConvId);
+  // Test 5A: Rahul tries to post to Priya's conversationId
+  console.log('Testing Rahul attempting to post to Priya\'s conversation...');
+  const unauthorizedPost = await chat(rahulAuth.token, 'I want Priya\'s data', priyaConvId);
   assert(
     unauthorizedPost.status === 403,
     `Adversarial cross-user post correctly rejected with HTTP 403 (got: ${unauthorizedPost.status})`
   );
 
-  // Test 5B: Akshita tries to read Anusha's conversation history
-  console.log('Testing Akshita attempting to read Anusha\'s conversation...');
-  const akshitaAuth = await loginAndGetToken('akshita@mahasetu.gov.in');
-  const unauthorizedGet = await getHistory(akshitaAuth.token, anushaConvId);
+  // Test 5B: Sneha tries to read Priya's conversation history
+  console.log('Testing Sneha attempting to read Priya\'s conversation...');
+  const snehaAuth = await loginAndGetToken('citizen.sneha@mahasetu.gov.in');
+  const unauthorizedGet = await getHistory(snehaAuth.token, priyaConvId);
   assert(
     unauthorizedGet.status === 403,
     `Adversarial cross-user GET history correctly rejected with HTTP 403 (got: ${unauthorizedGet.status})`
@@ -244,9 +244,9 @@ async function runAllTests() {
 
   // Test 5D: New Citizen dynamic test (simulated new UID)
   console.log('\n--- Phase 6: Future / New Citizen Automatic Isolation ---');
-  // Kanimozhi N was our 4th citizen; verify her conversation remains isolated
-  const kHist = await getHistory(citizenResults['Kanimozhi N'].convId);
-  // An unauthenticated request for Kanimozhi's conv fails
+  // Pooja Kulkarni was our 4th citizen; verify her conversation remains isolated
+  const kHist = await getHistory(citizenResults['Pooja Kulkarni'].convId);
+  // An unauthenticated request for Pooja's conv fails
   assert(kHist.status === 401, 'History without token rejected');
 
   console.log('\n====================================================');

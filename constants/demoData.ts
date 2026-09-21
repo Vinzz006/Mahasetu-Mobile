@@ -1,31 +1,12 @@
-export type DemoUserRole =
-  | 'citizen'
-  | 'department_officer'
-  | 'admin'
-  | 'auditor'
-  | 'pending'
-  | 'CITIZEN'
-  | 'DEPARTMENT_A'
-  | 'DEPARTMENT_B'
-  | 'DEPARTMENT_C'
-  | 'ADMIN'
-  | 'AUDITOR';
+// demoData.ts — Official Demo Accounts & Government Service Catalog
 
 export interface DemoUser {
   id: string;
   name: string;
   email: string;
-  role: DemoUserRole;
+  role: 'citizen' | 'department_officer' | 'admin' | 'auditor';
   departmentId?: 'DEPT_A' | 'DEPT_B' | 'DEPT_C' | null;
-  departmentName?: string;
-  status: 'APPROVED' | 'PENDING' | 'REJECTED' | 'SUSPENDED';
-  phone: string;
-  city: string;
-  district: string;
-  state: string;
-  pinCode: string;
-  aadhaarRef: string;
-  isVerified: boolean;
+  status: 'APPROVED' | 'PENDING' | 'REJECTED';
 }
 
 // Demo credentials must only be loaded from environment variables in local development
@@ -33,150 +14,84 @@ export const DEMO_PASSWORD = process.env.EXPO_PUBLIC_DEMO_PASSWORD || '';
 
 export const DEMO_USERS: DemoUser[] = [
   {
-    id: 'demo-anusha',
-    name: 'Anusha G.',
-    email: 'anusha@mahasetu.gov.in',
+    id: 'demo-priya',
+    name: 'Priya Sharma',
+    email: 'citizen.priya@mahasetu.gov.in',
     role: 'citizen',
+    departmentId: null,
     status: 'APPROVED',
-    phone: '+919876543210',
-    city: 'Mumbai',
-    district: 'Mumbai Suburban',
-    state: 'Maharashtra',
-    pinCode: '400001',
-    aadhaarRef: 'XXXX-XXXX-4589',
-    isVerified: true,
   },
   {
-    id: 'demo-muthu',
-    name: 'Muthumayil M.',
-    email: 'muthumayil@mahasetu.gov.in',
+    id: 'demo-rahul',
+    name: 'Rahul Verma',
+    email: 'citizen.rahul@mahasetu.gov.in',
     role: 'citizen',
+    departmentId: null,
     status: 'APPROVED',
-    phone: '+919876543211',
-    city: 'Pune',
-    district: 'Pune',
-    state: 'Maharashtra',
-    pinCode: '411001',
-    aadhaarRef: 'XXXX-XXXX-8921',
-    isVerified: true,
   },
   {
-    id: 'demo-akshita',
-    name: 'Akshita S S',
-    email: 'akshita@mahasetu.gov.in',
+    id: 'demo-sneha',
+    name: 'Sneha Patil',
+    email: 'citizen.sneha@mahasetu.gov.in',
     role: 'citizen',
+    departmentId: null,
     status: 'APPROVED',
-    phone: '+919876543212',
-    city: 'Nagpur',
-    district: 'Nagpur',
-    state: 'Maharashtra',
-    pinCode: '440001',
-    aadhaarRef: 'XXXX-XXXX-1147',
-    isVerified: true,
   },
   {
-    id: 'demo-kani',
-    name: 'Kanimozhi N',
-    email: 'kanimozhi@mahasetu.gov.in',
+    id: 'demo-pooja',
+    name: 'Pooja Kulkarni',
+    email: 'citizen.pooja@mahasetu.gov.in',
     role: 'citizen',
+    departmentId: null,
     status: 'APPROVED',
-    phone: '+919876543213',
-    city: 'Nashik',
-    district: 'Nashik',
-    state: 'Maharashtra',
-    pinCode: '422001',
-    aadhaarRef: 'XXXX-XXXX-9932',
-    isVerified: true,
   },
   {
-    id: 'demo-vinesh',
-    name: 'Vinesh S',
-    email: 'vinesh.dept_a@mahasetu.gov.in',
+    id: 'demo-ramesh',
+    name: 'Ramesh Kumar',
+    email: 'officer.dept_a@mahasetu.gov.in',
     role: 'department_officer',
     departmentId: 'DEPT_A',
-    departmentName: 'Department A — Revenue & Civil Supplies',
     status: 'APPROVED',
-    phone: '+919876543214',
-    city: 'Mumbai',
-    district: 'Mumbai',
-    state: 'Maharashtra',
-    pinCode: '400032',
-    aadhaarRef: 'XXXX-XXXX-3341',
-    isVerified: true,
   },
   {
-    id: 'demo-sai',
-    name: 'Sai Sharavan G',
-    email: 'sai.dept_b@mahasetu.gov.in',
+    id: 'demo-suresh',
+    name: 'Suresh Joshi',
+    email: 'officer.dept_b@mahasetu.gov.in',
     role: 'department_officer',
     departmentId: 'DEPT_B',
-    departmentName: 'Department B — Social Welfare & Inclusion',
     status: 'APPROVED',
-    phone: '+919876543215',
-    city: 'Mumbai',
-    district: 'Mumbai',
-    state: 'Maharashtra',
-    pinCode: '400032',
-    aadhaarRef: 'XXXX-XXXX-7721',
-    isVerified: true,
   },
   {
-    id: 'demo-omesh',
-    name: 'Omesh Kaarthik S U',
-    email: 'omesh.dept_c@mahasetu.gov.in',
+    id: 'demo-mahesh',
+    name: 'Mahesh Deshmukh',
+    email: 'officer.dept_c@mahasetu.gov.in',
     role: 'department_officer',
     departmentId: 'DEPT_C',
-    departmentName: 'Department C — Labour & Employment Welfare',
     status: 'APPROVED',
-    phone: '+919876543216',
-    city: 'Mumbai',
-    district: 'Mumbai',
-    state: 'Maharashtra',
-    pinCode: '400032',
-    aadhaarRef: 'XXXX-XXXX-5512',
-    isVerified: true,
   },
   {
-    id: 'demo-tammu',
-    name: 'Tammu Vedesh Kumar',
-    email: 'tammu.admin@mahasetu.gov.in',
+    id: 'demo-anil',
+    name: 'Anil Shinde',
+    email: 'admin.onboarding@mahasetu.gov.in',
     role: 'admin',
+    departmentId: null,
     status: 'APPROVED',
-    phone: '+919876543217',
-    city: 'Mumbai',
-    district: 'State HQ',
-    state: 'Maharashtra',
-    pinCode: '400032',
-    aadhaarRef: 'XXXX-XXXX-0011',
-    isVerified: true,
   },
   {
-    id: 'demo-shanmugam',
-    name: 'Shanmugam K',
-    email: 'shanmugam.admin@mahasetu.gov.in',
+    id: 'demo-vijay',
+    name: 'Vijay Patil',
+    email: 'admin.system@mahasetu.gov.in',
     role: 'admin',
+    departmentId: null,
     status: 'APPROVED',
-    phone: '+919876543218',
-    city: 'Mumbai',
-    district: 'State HQ',
-    state: 'Maharashtra',
-    pinCode: '400032',
-    aadhaarRef: 'XXXX-XXXX-0022',
-    isVerified: true,
   },
   {
-    id: 'demo-tanushri',
-    name: 'Tanushri S',
-    email: 'tanushri.auditor@mahasetu.gov.in',
+    id: 'demo-neha',
+    name: 'Neha Deshpande',
+    email: 'auditor.compliance@mahasetu.gov.in',
     role: 'auditor',
+    departmentId: null,
     status: 'APPROVED',
-    phone: '+919876543219',
-    city: 'Mumbai',
-    district: 'Oversight HQ',
-    state: 'Maharashtra',
-    pinCode: '400032',
-    aadhaarRef: 'XXXX-XXXX-0033',
-    isVerified: true,
   },
 ];
 

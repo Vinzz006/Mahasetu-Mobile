@@ -44,7 +44,7 @@ async function runRealtimeAdminVerification() {
   console.log('====================================================\n');
 
   // Authenticate as Admin on the primary administrative client
-  const adminEmail = 'tammu.admin@mahasetu.gov.in';
+  const adminEmail = 'admin.onboarding@mahasetu.gov.in';
   console.log(`[1] Authenticating as Admin: ${adminEmail}...`);
   const adminCred = await signInWithEmailAndPassword(auth, adminEmail, DEMO_PASSWORD);
   console.log(`    ✓ Admin authenticated successfully (${adminCred.user.uid}).\n`);

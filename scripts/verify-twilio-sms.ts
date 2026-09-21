@@ -293,16 +293,16 @@ class MockWorkflowEngine {
 // ----------------------------------------------------
 console.log('[Test 1: Citizen Submits Application]');
 const engine = new MockWorkflowEngine();
-const anusha = DEMO_USERS.find((u) => u.name.includes('Anusha')) || {
-  id: 'demo-anusha',
-  name: 'Anusha G.',
+const priya = DEMO_USERS.find((u) => u.name.includes('Priya')) || {
+  id: 'demo-priya',
+  name: 'Priya Sharma',
   phone: '+919876543210',
 };
 
 const app1 = engine.submitApplication({
-  uid: anusha.id,
-  name: anusha.name,
-  phoneNumber: anusha.phone,
+  uid: priya.id,
+  name: priya.name,
+  phoneNumber: priya.phone,
 });
 
 assert(app1.status === 'APPLICATION_SUBMITTED', '1.1 Application status is APPLICATION_SUBMITTED');
@@ -321,7 +321,7 @@ assert(
 // TEST 2: Department A Verifies
 // ----------------------------------------------------
 console.log('\n[Test 2: Department A Verification]');
-const resA = engine.verifyStage(app1.id, 'DEPARTMENT_A', anusha.phone);
+const resA = engine.verifyStage(app1.id, 'DEPARTMENT_A', priya.phone);
 assert(resA.app.verificationProgress.completed === 1, '2.1 Application verificationProgress completed = 1');
 const notifA = engine.notifications.find((n) => n.type === 'DEPARTMENT_A_VERIFIED');
 assert(!!notifA, '2.2 In-app notification created for Department A verification');
@@ -336,7 +336,7 @@ assert(
 // TEST 3: Department B Verifies
 // ----------------------------------------------------
 console.log('\n[Test 3: Department B Verification]');
-const resB = engine.verifyStage(app1.id, 'DEPARTMENT_B', anusha.phone);
+const resB = engine.verifyStage(app1.id, 'DEPARTMENT_B', priya.phone);
 assert(resB.app.verificationProgress.completed === 2, '3.1 Application verificationProgress completed = 2');
 const smsB = engine.smsSentHistory.find((s) => s.eventType === 'DEPARTMENT_B_VERIFIED');
 assert(!!smsB, '3.2 SMS sent for Department B verification');
@@ -349,7 +349,7 @@ assert(
 // TEST 4: Department C Verifies
 // ----------------------------------------------------
 console.log('\n[Test 4: Department C Verification]');
-const resC = engine.verifyStage(app1.id, 'DEPARTMENT_C', anusha.phone);
+const resC = engine.verifyStage(app1.id, 'DEPARTMENT_C', priya.phone);
 assert(resC.app.verificationProgress.completed === 3, '4.1 Application verificationProgress completed = 3');
 const smsC = engine.smsSentHistory.find((s) => s.eventType === 'DEPARTMENT_C_VERIFIED');
 assert(!!smsC, '4.2 SMS sent for Department C verification');
@@ -362,7 +362,7 @@ assert(
 // TEST 5: Admin Verifies
 // ----------------------------------------------------
 console.log('\n[Test 5: State Admin Verification]');
-const resAdmin = engine.verifyStage(app1.id, 'ADMIN', anusha.phone);
+const resAdmin = engine.verifyStage(app1.id, 'ADMIN', priya.phone);
 assert(resAdmin.app.verificationProgress.completed === 4, '5.1 Application verificationProgress completed = 4');
 const smsAdmin = engine.smsSentHistory.find((s) => s.eventType === 'ADMIN_VERIFIED');
 assert(!!smsAdmin, '5.2 SMS sent for Admin verification');
@@ -375,7 +375,7 @@ assert(
 // TEST 6 & 7: Auditor Verifies & Final Completion
 // ----------------------------------------------------
 console.log('\n[Test 6 & 7: Auditor Verification & Final Application Completion]');
-const resAuditor = engine.verifyStage(app1.id, 'AUDITOR', anusha.phone);
+const resAuditor = engine.verifyStage(app1.id, 'AUDITOR', priya.phone);
 assert(resAuditor.app.verificationProgress.completed === 5, '6.1 All 5 verification roles completed');
 assert(resAuditor.app.status === 'APPLICATION_VERIFIED', '6.2 Application status advances to APPLICATION_VERIFIED');
 
@@ -394,7 +394,7 @@ assert(
 console.log('\n[Test 8: Repeated Screen Refresh & Duplicate Prevention]');
 const initialSmsCount = engine.smsSentHistory.length;
 // Simulate repeating the verification call or screen reload
-const resRepeat = engine.verifyStage(app1.id, 'AUDITOR', anusha.phone);
+const resRepeat = engine.verifyStage(app1.id, 'AUDITOR', priya.phone);
 assert(resRepeat.duplicate === true, '8.1 Idempotency check detects already verified slot');
 assert(engine.smsSentHistory.length === initialSmsCount, '8.2 Screen refresh causes NO duplicate SMS');
 
