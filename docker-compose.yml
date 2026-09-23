@@ -1,0 +1,25 @@
+# ==============================================================================
+# MahaSetu Trusted Backend — Docker Compose (Local Development & Judging)
+# ==============================================================================
+# Containerizes the MahaSetu Backend only.
+# External cloud services (Firebase, Twilio, Gemini) are called over HTTPS.
+# Runtime secrets are read dynamically from .env (never baked into images).
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: mahasetu-backend
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - CORS_ALLOWED_ORIGINS=http://localhost:8081,http://127.0.0.1:8081,http://localhost:19006
+    env_file:
+      - .env
+    restart: unless-stopped
