@@ -10,15 +10,17 @@ import { TwilioHealthStatus } from '../../../types';
 
 export default function AdminIntegrationsScreen() {
   const [health, setHealth] = useState<TwilioHealthStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadHealth = async () => {
     try {
+      setError(null);
       const data = await twilioService.getTwilioHealth();
       setHealth(data);
-    } catch {
-      // Ignored
+    } catch (err: any) {
+      setError(err.message || 'Unable to load backend telemetry');
     } finally {
       setLoading(false);
     }
@@ -28,24 +30,31 @@ export default function AdminIntegrationsScreen() {
     loadHealth();
 
     // Subscribe to live SMS updates
-    const unsub = twilioService.subscribeToSmsMetrics((metrics) => {
-      setHealth((prev) => ({
-        enabled: prev?.enabled ?? true,
-        connected: prev?.connected ?? true,
-        messagingServiceConfigured: prev?.messagingServiceConfigured ?? true,
-        verifyServiceConfigured: false,
-        smsSentToday: metrics.smsSentToday,
-        smsFailedToday: metrics.smsFailedToday,
-        recentLogs: metrics.recentLogs,
-      }));
-      setLoading(false);
-    });
+    const unsub = twilioService.subscribeToSmsMetrics(
+      (metrics) => {
+        setHealth((prev) => ({
+          enabled: prev?.enabled ?? true,
+          connected: prev?.connected ?? true,
+          messagingServiceConfigured: prev?.messagingServiceConfigured ?? true,
+          verifyServiceConfigured: false,
+          smsSentToday: metrics.smsSentToday,
+          smsFailedToday: metrics.smsFailedToday,
+          recentLogs: metrics.recentLogs,
+        }));
+        setLoading(false);
+      },
+      (err) => {
+        setError(err || 'Failed to stream SMS telemetry');
+        setLoading(false);
+      }
+    );
 
     return () => unsub();
   }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
+    setError(null);
     await loadHealth();
     setRefreshing(false);
   };
@@ -80,6 +89,12 @@ export default function AdminIntegrationsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListHeaderComponent={
             <View>
+              {error && (
+                <View style={styles.errorBanner}>
+                  <Ionicons name="alert-circle" size={20} color={Colors.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
               {/* Status overview cards */}
               <View style={styles.statusRow}>
                 <View style={styles.twilioStatusCard}>
@@ -371,5 +386,22 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs - 2,
     color: Colors.textMuted,
     textAlign: 'right',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.danger,
+    fontWeight: '500',
   },
 });

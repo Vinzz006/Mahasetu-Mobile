@@ -119,55 +119,13 @@ export const applicationService = {
       updatedAt: new Date().toISOString(),
     };
 
-    // Attempt through trusted backend first
+    // Submit via trusted backend API (server initializes 5-slot verification atomically)
     try {
       const response = await api.post<Application>('/api/v1/applications', newApp);
       return response;
-    } catch {
-      // Citizen submission: creates application document and applicant notification only
-      const batch = writeBatch(db);
-      const appRef = doc(db, 'applications', applicationId);
-
-      const cleanAppPayload = sanitizeFirestorePayload({
-        ...newApp,
-        citizenId: citizen.uid,
-        citizenUid: citizen.uid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      assertNoUndefinedValues(cleanAppPayload, 'applications');
-      batch.set(appRef, cleanAppPayload);
-
-      // Also create an in-app notification for the applicant citizen
-      const notifRef = doc(collection(db, 'notifications'));
-      const notifPayload = sanitizeFirestorePayload({
-        userId: citizen.uid,
-        applicationId,
-        applicationNumber: appNumber,
-        type: 'APPLICATION_SUBMITTED',
-        title: 'Application Submitted',
-        message: `Application ${appNumber} for ${serviceTitle} has been submitted. 5-party verification workflow initialized.`,
-        channel: 'IN_APP',
-        status: 'SENT',
-        read: false,
-        createdAt: serverTimestamp(),
-      });
-      assertNoUndefinedValues(notifPayload, 'notifications');
-      batch.set(notifRef, notifPayload);
-
-      await batch.commit();
-
-      // Trigger backend workflow initialization asynchronously if backend is available
-      try {
-        await api.post(`/api/v1/applications/${applicationId}/submit`, {
-          applicationId,
-          citizenId: citizen.uid,
-        });
-      } catch (backendError) {
-        // Backend fallback - verification tasks can be accessed/created by authorized verifiers
-      }
-
-      return newApp;
+    } catch (apiErr: any) {
+      console.error('[applicationService] Backend submission failed:', apiErr);
+      throw new Error(apiErr.message || 'Application submission failed. Please ensure the MahaSetu backend is active.');
     }
   },
 

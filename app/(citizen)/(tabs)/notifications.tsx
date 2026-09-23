@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { Header } from '../../../components/common/Header';
 import { StatusBadge } from '../../../components/common/StatusBadge';
 import { EmptyState } from '../../../components/common/EmptyState';
@@ -12,62 +12,32 @@ import { NotificationItem } from '../../../types';
 export default function CitizenNotificationsScreen() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    const unsub = notificationService.subscribeToNotifications(user, (list) => {
-      if (list.length === 0) {
-        // Provide standard representative notifications for testing
-        setNotifications([
-          {
-            id: 'notif-1',
-            userId: user.uid,
-            applicationNumber: 'MS-10001',
-            type: 'APPLICATION_SUBMITTED',
-            title: 'Application Submitted Successfully',
-            message: 'Application MS-10001 has been registered. 5-department verification initialized.',
-            channel: 'IN_APP',
-            status: 'SENT',
-            read: false,
-            createdAt: new Date(Date.now() - 7200000).toISOString(),
-          },
-          {
-            id: 'notif-2',
-            userId: user.uid,
-            applicationNumber: 'MS-10001',
-            type: 'CONSENT_REQUEST',
-            title: 'Twilio SMS & In-App Alert: Consent Required',
-            message: 'Department B requests access to your Name and Mobile. Please review in Consent tab.',
-            channel: 'SMS',
-            status: 'SENT',
-            twilioMessageSid: 'SM9a7b8c1d2e3f4a5b6c7d8e9f',
-            read: false,
-            createdAt: new Date(Date.now() - 3600000).toISOString(),
-          },
-          {
-            id: 'notif-3',
-            userId: user.uid,
-            applicationNumber: 'MS-10001',
-            type: 'VERIFICATION_UPDATE',
-            title: 'Department A Verified',
-            message: 'Revenue & Civil Supplies has successfully verified your income and domicile.',
-            channel: 'IN_APP',
-            status: 'SENT',
-            read: true,
-            createdAt: new Date(Date.now() - 1800000).toISOString(),
-          },
-        ]);
-      } else {
+    setLoading(true);
+    setError(null);
+    const unsub = notificationService.subscribeToNotifications(
+      user,
+      (list) => {
         setNotifications(list);
+        setLoading(false);
+      },
+      (err) => {
+        setError(err || 'Failed to load notifications');
+        setLoading(false);
       }
-    });
+    );
 
     return () => unsub();
   }, [user]);
 
   const onRefresh = () => {
     setRefreshing(true);
+    setError(null);
     setTimeout(() => setRefreshing(false), 800);
   };
 
@@ -126,20 +96,35 @@ export default function CitizenNotificationsScreen() {
         subtitle="In-app and Twilio SMS notification log"
       />
 
-      <FlatList
-        data={notifications}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={
-          <EmptyState
-            icon="notifications-off-outline"
-            title="No Notifications"
-            description="You have no alerts at this time."
-          />
-        }
-      />
+      {loading ? (
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading notifications...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListHeaderComponent={
+            error ? (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={20} color={Colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="notifications-off-outline"
+              title="No Notifications"
+              description="You have no alerts at this time."
+            />
+          }
+        />
+      )}
     </View>
   );
 }
@@ -227,5 +212,33 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: Typography.fontSize.xs - 2,
     color: Colors.textMuted,
+  },
+  centerLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.danger,
+    fontWeight: '500',
   },
 });
