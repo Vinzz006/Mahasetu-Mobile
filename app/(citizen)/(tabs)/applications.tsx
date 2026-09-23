@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { Header } from '../../../components/common/Header';
 import { StatusBadge } from '../../../components/common/StatusBadge';
 import { EmptyState } from '../../../components/common/EmptyState';
@@ -13,18 +13,31 @@ import { router } from 'expo-router';
 export default function CitizenApplicationsScreen() {
   const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    const unsub = applicationService.subscribeToApplications(user, (list) => {
-      setApplications(list);
-    });
+    setLoading(true);
+    setError(null);
+    const unsub = applicationService.subscribeToApplications(
+      user,
+      (list) => {
+        setApplications(list);
+        setLoading(false);
+      },
+      (err) => {
+        setError(err || 'Failed to load applications');
+        setLoading(false);
+      }
+    );
     return () => unsub();
   }, [user]);
 
   const onRefresh = () => {
     setRefreshing(true);
+    setError(null);
     setTimeout(() => setRefreshing(false), 800);
   };
 
@@ -83,20 +96,35 @@ export default function CitizenApplicationsScreen() {
         subtitle="Real-time multi-department verification status"
       />
 
-      <FlatList
-        data={applications}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={
-          <EmptyState
-            icon="document-text-outline"
-            title="No Applications Submitted"
-            description="Explore the services catalogue to apply. Your information will be reused securely."
-          />
-        }
-      />
+      {loading ? (
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading applications...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={applications}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListHeaderComponent={
+            error ? (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={20} color={Colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="document-text-outline"
+              title="No Applications Submitted"
+              description="Explore the services catalogue to apply. Your information will be reused securely."
+            />
+          }
+        />
+      )}
     </View>
   );
 }
@@ -194,5 +222,33 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.primary,
     fontWeight: '700',
+  },
+  centerLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.danger,
+    fontWeight: '500',
   },
 });

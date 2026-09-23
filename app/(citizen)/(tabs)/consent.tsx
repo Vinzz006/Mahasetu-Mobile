@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { Header } from '../../../components/common/Header';
 import { ConsentCard } from '../../../components/consent/ConsentCard';
 import { EmptyState } from '../../../components/common/EmptyState';
@@ -12,55 +12,32 @@ import { Consent } from '../../../types';
 export default function CitizenConsentScreen() {
   const { user } = useAuth();
   const [consents, setConsents] = useState<Consent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Prepopulate standard demo consent requests if list is initially empty
   useEffect(() => {
     if (!user) return;
-    const unsub = consentService.subscribeToConsents(user, (list) => {
-      if (list.length === 0) {
-        // Provide representative default consent record for demonstration
-        setConsents([
-          {
-            id: 'c-101',
-            applicationId: 'app_1',
-            applicationNumber: 'MS-10001',
-            citizenUid: user.uid,
-            sourceDepartment: 'Department A',
-            targetDepartment: 'DEPT_B',
-            targetDepartmentName: 'Department B — Social Welfare & Inclusion',
-            purpose: 'Eligibility Verification & Domicile Check',
-            sharedFields: ['Legal Name', 'Mobile Number', 'City / District'],
-            status: 'PENDING',
-            expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'c-102',
-            applicationId: 'app_1',
-            applicationNumber: 'MS-10001',
-            citizenUid: user.uid,
-            sourceDepartment: 'Department B',
-            targetDepartment: 'DEPT_C',
-            targetDepartmentName: 'Department C — Labour & Employment Welfare',
-            purpose: 'Employment Allowance Registry Check',
-            sharedFields: ['Legal Name', 'Aadhaar Reference', 'Employment Category'],
-            status: 'GRANTED',
-            grantedAt: new Date(Date.now() - 86400000).toISOString(),
-            expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
-            createdAt: new Date(Date.now() - 86400000).toISOString(),
-          },
-        ]);
-      } else {
+    setLoading(true);
+    setError(null);
+    const unsub = consentService.subscribeToConsents(
+      user,
+      (list) => {
         setConsents(list);
+        setLoading(false);
+      },
+      (err) => {
+        setError(err || 'Failed to load consent requests');
+        setLoading(false);
       }
-    });
+    );
 
     return () => unsub();
   }, [user]);
 
   const onRefresh = () => {
     setRefreshing(true);
+    setError(null);
     setTimeout(() => setRefreshing(false), 800);
   };
 
@@ -95,33 +72,48 @@ export default function CitizenConsentScreen() {
         subtitle="You control which departments access your information"
       />
 
-      <FlatList
-        data={consents}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ConsentCard consent={item} onGrant={handleGrant} onDeny={handleDeny} />
-        )}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListHeaderComponent={
-          <View style={styles.banner}>
-            <Ionicons name="shield-checkmark" size={20} color={Colors.accent} />
-            <View style={styles.bannerContent}>
-              <Text style={styles.bannerTitle}>Granular Citizen Consent</Text>
-              <Text style={styles.bannerText}>
-                No government department can access your private data without your explicit permission. Each exchange is strictly scoped to the stated purpose.
-              </Text>
+      {loading ? (
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading consent requests...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={consents}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <ConsentCard consent={item} onGrant={handleGrant} onDeny={handleDeny} />
+          )}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListHeaderComponent={
+            <View>
+              {error && (
+                <View style={styles.errorBanner}>
+                  <Ionicons name="alert-circle" size={20} color={Colors.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+              <View style={styles.banner}>
+                <Ionicons name="shield-checkmark" size={20} color={Colors.accent} />
+                <View style={styles.bannerContent}>
+                  <Text style={styles.bannerTitle}>Granular Citizen Consent</Text>
+                  <Text style={styles.bannerText}>
+                    No government department can access your private data without your explicit permission. Each exchange is strictly scoped to the stated purpose.
+                  </Text>
+                </View>
+              </View>
             </View>
-          </View>
-        }
-        ListEmptyComponent={
-          <EmptyState
-            icon="shield-outline"
-            title="No Consent Requests"
-            description="You have no pending data-sharing requests at this time."
-          />
-        }
-      />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="shield-outline"
+              title="No Consent Requests"
+              description="You have no pending data-sharing requests at this time."
+            />
+          }
+        />
+      )}
     </View>
   );
 }
@@ -159,5 +151,33 @@ const styles = StyleSheet.create({
     color: '#0F766E',
     marginTop: 2,
     lineHeight: 18,
+  },
+  centerLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.danger,
+    fontWeight: '500',
   },
 });

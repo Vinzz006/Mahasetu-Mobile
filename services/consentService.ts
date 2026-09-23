@@ -15,7 +15,11 @@ export const consentService = {
   /**
    * Real-time listener for Citizen's data-sharing consent requests
    */
-  subscribeToConsents(user: UserProfile, callback: (consents: Consent[]) => void) {
+  subscribeToConsents(
+    user: UserProfile,
+    callback: (consents: Consent[]) => void,
+    onError?: (err: string) => void
+  ) {
     const cRef = collection(db, 'consents');
     let q = query(cRef);
 
@@ -51,7 +55,8 @@ export const consentService = {
       },
       (error) => {
         console.warn('Consents realtime listener warning:', error.message);
-        callback([]);
+        if (onError) onError(error.message);
+        else callback([]);
       }
     );
   },

@@ -14,7 +14,11 @@ export const notificationService = {
   /**
    * Listen to user notifications realtime
    */
-  subscribeToNotifications(user: UserProfile, callback: (notifications: NotificationItem[]) => void) {
+  subscribeToNotifications(
+    user: UserProfile,
+    callback: (notifications: NotificationItem[]) => void,
+    onError?: (err: string) => void
+  ) {
     const nRef = collection(db, 'notifications');
     const q = query(nRef, where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
 
@@ -44,7 +48,8 @@ export const notificationService = {
       },
       (error) => {
         console.warn('Notifications listener warning:', error.message);
-        callback([]);
+        if (onError) onError(error.message);
+        else callback([]);
       }
     );
   },
