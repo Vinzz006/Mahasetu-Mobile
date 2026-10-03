@@ -56,7 +56,7 @@ function checkRateLimit(key: string, map: Map<string, RateLimitEntry>, limit: nu
 }
 
 // Periodic cleanup of rate limit maps every 5 minutes
-setInterval(() => {
+(setInterval(() => {
   const now = Date.now();
   for (const [k, v] of ipRateLimits.entries()) {
     if (now > v.resetTime) ipRateLimits.delete(k);
@@ -64,7 +64,7 @@ setInterval(() => {
   for (const [k, v] of uidRateLimits.entries()) {
     if (now > v.resetTime) uidRateLimits.delete(k);
   }
-}, 5 * 60 * 1000).unref();
+}, 5 * 60 * 1000) as unknown as NodeJS.Timeout).unref();
 
 /**
  * Authenticates Firebase ID Token passed in Authorization: Bearer <token>

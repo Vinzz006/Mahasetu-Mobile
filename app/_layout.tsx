@@ -33,7 +33,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="light" backgroundColor={Colors.primaryDark} />
+        <StatusBar style="light" />
         <AppLayoutContent />
       </AuthProvider>
     </SafeAreaProvider>
