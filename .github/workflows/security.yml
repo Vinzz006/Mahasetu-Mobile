@@ -39,13 +39,16 @@ jobs:
             out = err.stdout || "";
           }
           const report = JSON.parse(out.toString());
-          // Documented upstream build-time vulnerability exception:
-          // image-size <=2.0.2 is a Metro 0.81 build-time dependency. Metro 0.81 cannot consume
-          // image-size 2.x CommonJS exports; remediation requires a future React Native/Metro upgrade.
+          // Documented upstream build-time vulnerability exceptions:
+          // 1. image-size <=2.0.2 is a Metro build-time dependency.
+          // 2. GHSA-86w9-cpqp-85rv: node-forge <=1.4.0 is a build-time dependency of @expo/cli with no upstream patch published to npm.
+          // 3. GHSA-vfj7-8cjw-p6xm: braces <=3.0.3 is a build-time dependency of Metro/micromatch with no upstream patch published to npm.
           const allowedAdvisories = new Set([
             "GHSA-w3rx-r6r6-pgpr",
             "GHSA-5p2g-fcmc-qvqq",
-            "GHSA-5p6h-fcmc-qvqq"
+            "GHSA-5p6h-fcmc-qvqq",
+            "GHSA-86w9-cpqp-85rv",
+            "GHSA-vfj7-8cjw-p6xm"
           ]);
 
           function getRootAdvisories(pkgName, visited = new Set()) {
