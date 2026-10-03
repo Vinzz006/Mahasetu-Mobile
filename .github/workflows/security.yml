@@ -45,7 +45,11 @@ jobs:
           const allowedAdvisories = new Set([
             "GHSA-w3rx-r6r6-pgpr",
             "GHSA-5p2g-fcmc-qvqq",
-            "GHSA-5p6h-fcmc-qvqq"
+            "GHSA-5p6h-fcmc-qvqq",
+            // No patched versions are available yet (npm audit reports latest braces@3.0.3 as affected).
+            "GHSA-vfj7-8cjw-p6xm",
+            // No patched versions are available yet (npm audit reports latest node-forge@1.4.0 as affected).
+            "GHSA-86w9-cpqp-85rv"
           ]);
 
           function getRootAdvisories(pkgName, visited = new Set()) {
