@@ -50,6 +50,7 @@
     "undici": "^6.28.1",
     "postcss": "^8.5.28",
     "braces": "^3.0.3",
+    "@grpc/grpc-js": "^1.14.5",
     "@expo/plist": {
       "@xmldom/xmldom": "~0.8.11"
     }
