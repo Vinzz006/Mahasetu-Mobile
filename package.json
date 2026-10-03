@@ -49,6 +49,7 @@
     "tar": "^7.4.3",
     "undici": "^6.28.1",
     "postcss": "^8.5.28",
+    "braces": "^3.0.3",
     "@expo/plist": {
       "@xmldom/xmldom": "~0.8.11"
     }

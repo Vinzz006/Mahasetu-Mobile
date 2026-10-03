@@ -67,20 +67,38 @@ jobs:
           const violations = [];
           for (const [pkg, info] of Object.entries(report.vulnerabilities || {})) {
             if (info.severity === "critical") {
-              violations.push({ package: pkg, severity: "critical", via: info.via });
+              violations.push({
+                package: pkg,
+                severity: "critical",
+                via: info.via,
+                fix: "Upgrade or override the vulnerable transitive dependency"
+              });
               continue;
             }
             if (info.severity === "high") {
               const rootAdvisories = getRootAdvisories(pkg);
               if (rootAdvisories.length === 0) {
-                violations.push({ package: pkg, severity: "high", reason: "Unresolved dependency path", via: info.via });
+                violations.push({
+                  package: pkg,
+                  severity: "high",
+                  reason: "Unresolved dependency path",
+                  via: info.via,
+                  fix: "Upgrade or override the vulnerable transitive dependency"
+                });
                 continue;
               }
               for (const adv of rootAdvisories) {
                 const advId = adv.url ? adv.url.split("/").pop() : "";
                 const isAllowed = allowedAdvisories.has(advId);
                 if (adv.severity === "critical" || (adv.severity === "high" && !isAllowed)) {
-                  violations.push({ package: pkg, severity: adv.severity, title: adv.title, url: adv.url });
+                  violations.push({
+                    package: pkg,
+                    severity: adv.severity,
+                    title: adv.title,
+                    url: adv.url,
+                    via: info.via,
+                    fix: "Upgrade or override the vulnerable transitive dependency"
+                  });
                 }
               }
             }
