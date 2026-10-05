@@ -15,7 +15,7 @@ import { FormInput } from '../../../components/forms/FormInput';
 import { Colors, Spacing, Typography, BorderRadius } from '../../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../store/AuthContext';
-import { GOVERNMENT_SERVICES } from '../../../constants/demoData';
+import { GOVERNMENT_SERVICES } from '../../../constants/services';
 import { applicationService } from '../../../services/applicationService';
 import { residentProfileService } from '../../../services/residentProfileService';
 

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { Header } from '../../../components/common/Header';
 import { Colors, Spacing, Typography, BorderRadius } from '../../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { GOVERNMENT_SERVICES } from '../../../constants/demoData';
+import { GOVERNMENT_SERVICES } from '../../../constants/services';
 import { router } from 'expo-router';
 
 export default function CitizenServicesScreen() {
