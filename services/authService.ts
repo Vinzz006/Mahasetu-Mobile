@@ -621,6 +621,20 @@ export const authService = {
   },
 
   /**
+   * Admin suspends user account
+   */
+  async suspendUser(targetUid: string, reason?: string): Promise<void> {
+    await api.post(`/api/v1/admin/users/${targetUid}/suspend`, { reason });
+  },
+
+  /**
+   * Admin reinstates user account
+   */
+  async reinstateUser(targetUid: string): Promise<void> {
+    await api.post(`/api/v1/admin/users/${targetUid}/reinstate`, {});
+  },
+
+  /**
    * Refresh ID token to pick up new custom claims
    */
   async refreshIdToken(): Promise<string | null> {

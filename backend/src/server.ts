@@ -125,6 +125,7 @@ export const ROUTE_TABLE: RouteConfig[] = [
     roles: ['ADMIN'],
     requireApproved: true,
     requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
   },
   // 8b. Admin User Rejection
   {
@@ -133,6 +134,7 @@ export const ROUTE_TABLE: RouteConfig[] = [
     roles: ['ADMIN'],
     requireApproved: true,
     requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
   },
   // 8c. Admin Citizen Identity Certification
   {
@@ -141,6 +143,25 @@ export const ROUTE_TABLE: RouteConfig[] = [
     roles: ['ADMIN'],
     requireApproved: true,
     requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
+  },
+  // 8d. Admin User Suspend
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/admin\/users\/[^/]+\/suspend$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
+  },
+  // 8e. Admin User Reinstate
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/admin\/users\/[^/]+\/reinstate$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
   },
   // Twilio Health & Monitoring
   {
@@ -289,10 +310,14 @@ export async function authorize(
     }
   }
 
-  if (route.maxAuthAgeSec && claims.authTime) {
-    const authAgeSec = Math.floor(Date.now() / 1000) - claims.authTime;
+  if (route.maxAuthAgeSec) {
+    const authAgeSec = claims.authTime ? Math.floor(Date.now() / 1000) - claims.authTime : Infinity;
     if (authAgeSec > route.maxAuthAgeSec) {
-      sendError(res, 401, 'Re-authentication required.', requestId, { code: 'REAUTH_REQUIRED' });
+      sendJson(res, 401, {
+        error: 'Re-authentication required for privileged action.',
+        code: 'REAUTH_REQUIRED',
+        requestId,
+      });
       return null;
     }
   }
@@ -1120,6 +1145,21 @@ export function createBackendServer(): http.Server {
         return;
       }
 
+async function checkNotLastAdmin(targetUid: string): Promise<boolean> {
+  try {
+    const adminSnap = await adminDb.collection('users')
+      .where('role', '==', 'ADMIN')
+      .where('status', '==', 'APPROVED')
+      .get();
+
+    const otherAdmins = adminSnap.docs.filter((d: any) => d.id !== targetUid && d.data().isActive !== false);
+    return otherAdmins.length > 0;
+  } catch (err) {
+    // Fail closed
+    return false;
+  }
+}
+
       // ==========================================
       // 8. Admin Privileged Routes (ADMIN Role Only)
       // ==========================================
@@ -1133,6 +1173,14 @@ export function createBackendServer(): http.Server {
           return;
         }
 
+        let targetUserRecord: any;
+        try {
+          targetUserRecord = await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target user ${targetUid} not found in authentication registry.`, requestId);
+          return;
+        }
+
         const role = typeof body.role === 'string' ? body.role.toUpperCase() : '';
         const allowedRoles = ['CITIZEN', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'];
         if (!allowedRoles.includes(role)) {
@@ -1140,15 +1188,37 @@ export function createBackendServer(): http.Server {
           return;
         }
 
-        const isDept = ['DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C'].includes(role);
-        const departmentId = isDept && typeof body.departmentId === 'string' ? body.departmentId.toUpperCase() : null;
+        // Prevent demoting the last remaining admin
+        if (targetUserRecord.customClaims?.role === 'ADMIN' && role !== 'ADMIN') {
+          const hasOtherAdmin = await checkNotLastAdmin(targetUid);
+          if (!hasOtherAdmin) {
+            sendError(res, 400, 'Forbidden: Cannot demote the last remaining administrator.', requestId);
+            return;
+          }
+        }
 
-        // Set signed custom claims
+        const isDept = ['DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C'].includes(role);
+        let departmentId: string | null = null;
+        if (isDept) {
+          if (!body.departmentId || body.departmentId.toUpperCase() !== role) {
+            sendError(res, 400, `Department ID must match the assigned department role ${role}.`, requestId);
+            return;
+          }
+          departmentId = role;
+        } else {
+          if (body.departmentId) {
+            sendError(res, 400, 'Department ID is not permitted for non-department roles.', requestId);
+            return;
+          }
+        }
+
+        // Set signed custom claims and revoke tokens for immediate demotion/role detection
         await adminAuth.setCustomUserClaims(targetUid, {
           role,
           departmentId,
           status: 'APPROVED',
         });
+        await adminAuth.revokeRefreshTokens(targetUid);
 
         // Update Firestore user document
         await adminDb.collection('users').doc(targetUid).set({
@@ -1182,15 +1252,32 @@ export function createBackendServer(): http.Server {
           return;
         }
 
+        let targetUserRecord: any;
+        try {
+          targetUserRecord = await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target user ${targetUid} not found in authentication registry.`, requestId);
+          return;
+        }
+
+        if (targetUserRecord.customClaims?.role === 'ADMIN') {
+          const hasOtherAdmin = await checkNotLastAdmin(targetUid);
+          if (!hasOtherAdmin) {
+            sendError(res, 400, 'Forbidden: Cannot reject the last remaining administrator.', requestId);
+            return;
+          }
+        }
+
         const reason = typeof body.reason === 'string' && body.reason.trim()
           ? body.reason.trim().substring(0, 500)
           : 'Registration rejected by administrator';
 
-        // Revoke claims
+        // Revoke claims and refresh tokens
         await adminAuth.setCustomUserClaims(targetUid, {
           role: 'rejected',
           status: 'REJECTED',
         });
+        await adminAuth.revokeRefreshTokens(targetUid);
 
         // Update Firestore user document
         await adminDb.collection('users').doc(targetUid).set({
@@ -1218,6 +1305,14 @@ export function createBackendServer(): http.Server {
       const verifyCitizenMatch = pathname.match(/^\/api\/v1\/admin\/citizens\/([^/]+)\/verify$/);
       if (req.method === 'POST' && verifyCitizenMatch) {
         const targetUid = verifyCitizenMatch[1];
+
+        try {
+          await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target citizen ${targetUid} not found in authentication registry.`, requestId);
+          return;
+        }
+
         const isVerified = body.verified === true;
 
         await adminDb.collection('users').doc(targetUid).set({
@@ -1249,6 +1344,109 @@ export function createBackendServer(): http.Server {
           details: { isVerified },
         });
         sendJson(res, 200, { success: true, isVerified });
+        return;
+      }
+
+      // 8d. Admin User Suspend
+      const suspendMatch = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/suspend$/);
+      if (req.method === 'POST' && suspendMatch) {
+        const targetUid = suspendMatch[1];
+        if (targetUid === claims.uid) {
+          sendError(res, 400, 'Forbidden: Cannot suspend your own administrative account.', requestId);
+          return;
+        }
+
+        let targetUserRecord: any;
+        try {
+          targetUserRecord = await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target user ${targetUid} not found in authentication registry.`, requestId);
+          return;
+        }
+
+        if (targetUserRecord.customClaims?.role === 'ADMIN') {
+          const hasOtherAdmin = await checkNotLastAdmin(targetUid);
+          if (!hasOtherAdmin) {
+            sendError(res, 400, 'Forbidden: Cannot suspend the last remaining administrator.', requestId);
+            return;
+          }
+        }
+
+        const reason = typeof body.reason === 'string' && body.reason.trim()
+          ? body.reason.trim().substring(0, 500)
+          : 'Account suspended by administrator';
+
+        const existingRole = targetUserRecord.customClaims?.role || 'CITIZEN';
+        const existingDept = targetUserRecord.customClaims?.departmentId || null;
+
+        await adminAuth.setCustomUserClaims(targetUid, {
+          role: existingRole,
+          departmentId: existingDept,
+          status: 'SUSPENDED',
+        });
+        await adminAuth.revokeRefreshTokens(targetUid);
+        await adminAuth.updateUser(targetUid, { disabled: true });
+
+        await adminDb.collection('users').doc(targetUid).set({
+          status: 'SUSPENDED',
+          isActive: false,
+          suspendedReason: reason,
+          suspendedBy: claims.uid,
+          suspendedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        logger.audit({
+          event: 'ADMIN_USER_SUSPENDED',
+          action: 'suspend_user_and_revoke_tokens',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+          details: { reason },
+        });
+        sendJson(res, 200, { success: true, message: `User ${targetUid} suspended.` });
+        return;
+      }
+
+      // 8e. Admin User Reinstate
+      const reinstateMatch = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/reinstate$/);
+      if (req.method === 'POST' && reinstateMatch) {
+        const targetUid = reinstateMatch[1];
+        let targetUserRecord: any;
+        try {
+          targetUserRecord = await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target user ${targetUid} not found in authentication registry.`, requestId);
+          return;
+        }
+
+        const existingRole = targetUserRecord.customClaims?.role || 'CITIZEN';
+        const existingDept = targetUserRecord.customClaims?.departmentId || null;
+
+        await adminAuth.setCustomUserClaims(targetUid, {
+          role: existingRole,
+          departmentId: existingDept,
+          status: 'APPROVED',
+        });
+        await adminAuth.revokeRefreshTokens(targetUid);
+        await adminAuth.updateUser(targetUid, { disabled: false });
+
+        await adminDb.collection('users').doc(targetUid).set({
+          status: 'APPROVED',
+          isActive: true,
+          reinstatedBy: claims.uid,
+          reinstatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        logger.audit({
+          event: 'ADMIN_USER_REINSTATED',
+          action: 'reinstate_user_and_enable_account',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+        });
+        sendJson(res, 200, { success: true, message: `User ${targetUid} reinstated.` });
         return;
       }
 

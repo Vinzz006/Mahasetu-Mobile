@@ -6,18 +6,18 @@ class ApiClient {
     return Config.API_BASE_URL;
   }
 
-  private async getAuthToken(): Promise<string | null> {
+  private async getAuthToken(forceRefresh = false): Promise<string | null> {
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) return null;
-      return await currentUser.getIdToken(false);
+      return await currentUser.getIdToken(forceRefresh);
     } catch {
       return null;
     }
   }
 
-  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const token = await this.getAuthToken();
+  async request<T>(endpoint: string, options: RequestInit = {}, isRetry = false): Promise<T> {
+    const token = await this.getAuthToken(isRetry);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -42,17 +42,38 @@ class ApiClient {
 
       clearTimeout(timeoutId);
 
+      // On 401 Unauthorized: force refresh token once and retry
+      if (response.status === 401 && !isRetry && auth.currentUser) {
+        try {
+          const refreshedToken = await auth.currentUser.getIdToken(true);
+          if (refreshedToken) {
+            return await this.request<T>(endpoint, options, true);
+          }
+        } catch {
+          // Token revoked or user disabled -> sign out immediately
+          await auth.signOut();
+        }
+      }
+
       if (!response.ok) {
         let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
+        let errorCode: string | undefined;
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorData.error || errorMessage;
+          errorCode = errorData.code;
         } catch {
           // Non-JSON error body
         }
 
+        if (response.status === 401 && isRetry) {
+          // Persistent 401 after force refresh -> sign out
+          await auth.signOut();
+        }
+
         const error = new Error(errorMessage) as any;
         error.status = response.status;
+        error.code = errorCode;
         throw error;
       }
 

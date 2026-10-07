@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, before, after, beforeEach } from 'node:test';
 import * as assert from 'node:assert';
 import * as http from 'http';
 import { createBackendServer, verifyFirebaseToken } from '../server';
@@ -15,6 +15,9 @@ describe('Backend Server Authentication & Security Tests', () => {
   const originalBatch = adminDb.batch.bind(adminDb);
   const originalCollection = adminDb.collection.bind(adminDb);
   const originalSetCustomUserClaims = adminAuth.setCustomUserClaims.bind(adminAuth);
+  const originalGetUser = adminAuth.getUser.bind(adminAuth);
+  const originalRevokeRefreshTokens = adminAuth.revokeRefreshTokens.bind(adminAuth);
+  const originalUpdateUser = adminAuth.updateUser.bind(adminAuth);
   const originalSendSms = twilioBackendService.sendApplicationStatusSms.bind(twilioBackendService);
 
   before(async () => {
@@ -35,9 +38,42 @@ describe('Backend Server Authentication & Security Tests', () => {
     });
   });
 
+  beforeEach(() => {
+    (adminAuth as any).getUser = async (uid: string) => ({
+      uid,
+      email: `${uid}@example.com`,
+      customClaims: {},
+    });
+    (adminAuth as any).setCustomUserClaims = async () => {};
+    (adminAuth as any).revokeRefreshTokens = async () => {};
+    (adminAuth as any).updateUser = async () => ({});
+    (adminDb as any).collection = (colName: string) => ({
+      doc: (docId: string) => ({
+        id: docId,
+        path: `${colName}/${docId}`,
+        get: async () => ({ exists: true, id: docId, data: () => ({ id: docId }) }),
+        set: async () => {},
+        update: async () => {},
+      }),
+      where: () => ({
+        where: () => ({
+          get: async () => ({
+            docs: [
+              { id: 'admin1', data: () => ({ role: 'ADMIN', status: 'APPROVED', isActive: true }) },
+              { id: 'admin2', data: () => ({ role: 'ADMIN', status: 'APPROVED', isActive: true }) },
+            ],
+          }),
+        }),
+      }),
+    });
+  });
+
   after(async () => {
     adminAuth.verifyIdToken = originalVerifyIdToken;
     adminAuth.setCustomUserClaims = originalSetCustomUserClaims;
+    adminAuth.getUser = originalGetUser;
+    adminAuth.revokeRefreshTokens = originalRevokeRefreshTokens;
+    adminAuth.updateUser = originalUpdateUser;
     adminDb.runTransaction = originalRunTransaction;
     adminDb.batch = originalBatch;
     adminDb.collection = originalCollection;
@@ -316,6 +352,7 @@ describe('Backend Server Authentication & Security Tests', () => {
       role: 'ADMIN',
       status: 'APPROVED',
       email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000) - 10,
     });
 
     const res = await fetch(`${baseUrl}/api/v1/admin/user-approvals/admin_user_1/approve`, {
@@ -339,6 +376,7 @@ describe('Backend Server Authentication & Security Tests', () => {
       role: 'ADMIN',
       status: 'APPROVED',
       email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000) - 10,
     });
 
     let assignedClaims: any = null;
@@ -350,9 +388,20 @@ describe('Backend Server Authentication & Security Tests', () => {
 
     (adminDb as any).collection = (colName: string) => ({
       doc: (docId: string) => ({
+        get: async () => ({ exists: true, data: () => ({ id: docId }) }),
         set: async (data: any) => {
           savedFirestoreData = { colName, docId, data };
         },
+      }),
+      where: () => ({
+        where: () => ({
+          get: async () => ({
+            docs: [
+              { id: 'admin1', data: () => ({ role: 'ADMIN', status: 'APPROVED', isActive: true }) },
+              { id: 'admin2', data: () => ({ role: 'ADMIN', status: 'APPROVED', isActive: true }) },
+            ],
+          }),
+        }),
       }),
     });
 
@@ -362,7 +411,7 @@ describe('Backend Server Authentication & Security Tests', () => {
         'Content-Type': 'application/json',
         Authorization: 'Bearer valid_admin_token',
       },
-      body: JSON.stringify({ role: 'DEPARTMENT_A', departmentId: 'DEPT_A' }),
+      body: JSON.stringify({ role: 'DEPARTMENT_A', departmentId: 'DEPARTMENT_A' }),
     });
 
     assert.strictEqual(res.status, 200);
@@ -373,7 +422,7 @@ describe('Backend Server Authentication & Security Tests', () => {
     assert.ok(assignedClaims, 'Must call setCustomUserClaims');
     assert.strictEqual(assignedClaims.uid, 'target_dept_officer');
     assert.strictEqual(assignedClaims.claims.role, 'DEPARTMENT_A');
-    assert.strictEqual(assignedClaims.claims.departmentId, 'DEPT_A');
+    assert.strictEqual(assignedClaims.claims.departmentId, 'DEPARTMENT_A');
     assert.strictEqual(assignedClaims.claims.status, 'APPROVED');
 
     // Verify Firestore updated
@@ -564,6 +613,274 @@ describe('Backend Server Authentication & Security Tests', () => {
     const res = await fetch(`${baseUrl}/api/v1/unknown-endpoint`, {
       method: 'GET',
     });
+    assert.strictEqual(res.status, 404);
+  });
+
+  it('20. Demoting or approving officer revokes refresh tokens immediately', async () => {
+    let revokedUid = '';
+    (adminAuth as any).revokeRefreshTokens = async (uid: string) => {
+      revokedUid = uid;
+    };
+    (adminAuth as any).getUser = async (uid: string) => ({
+      uid,
+      email: `${uid}@example.com`,
+      customClaims: { role: 'CITIZEN', status: 'PENDING' },
+    });
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user_1',
+      email: 'admin@mahasetu.gov.in',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000) - 10,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/admin/user-approvals/officer_target_1/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_admin_token',
+      },
+      body: JSON.stringify({ role: 'DEPARTMENT_A', departmentId: 'DEPARTMENT_A' }),
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(revokedUid, 'officer_target_1');
+  });
+
+  it('21. Rejects department role with mismatched departmentId or non-department role with departmentId with 400 Bad Request', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user_1',
+      email: 'admin@mahasetu.gov.in',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000) - 10,
+    });
+    (adminAuth as any).getUser = async (uid: string) => ({
+      uid,
+      email: `${uid}@example.com`,
+      customClaims: {},
+    });
+
+    // 1. DEPARTMENT_A with departmentId DEPARTMENT_B -> 400
+    const resMismatch = await fetch(`${baseUrl}/api/v1/admin/user-approvals/target_1/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_admin_token',
+      },
+      body: JSON.stringify({ role: 'DEPARTMENT_A', departmentId: 'DEPARTMENT_B' }),
+    });
+    assert.strictEqual(resMismatch.status, 400);
+    const dataMismatch = await resMismatch.json();
+    assert.strictEqual(dataMismatch.error.includes('Department ID must match'), true);
+
+    // 2. CITIZEN with departmentId DEPARTMENT_A -> 400
+    const resCitizenDept = await fetch(`${baseUrl}/api/v1/admin/user-approvals/target_1/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_admin_token',
+      },
+      body: JSON.stringify({ role: 'CITIZEN', departmentId: 'DEPARTMENT_A' }),
+    });
+    assert.strictEqual(resCitizenDept.status, 400);
+    const dataCitizenDept = await resCitizenDept.json();
+    assert.strictEqual(dataCitizenDept.error.includes('Department ID is not permitted for non-department roles'), true);
+  });
+
+  it('22. Rejects demoting or rejecting the last remaining ADMIN with 400 Bad Request', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_caller_1',
+      email: 'admin.caller@mahasetu.gov.in',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000) - 10,
+    });
+
+    // Target is currently an ADMIN
+    (adminAuth as any).getUser = async (uid: string) => ({
+      uid,
+      email: 'admin.target@mahasetu.gov.in',
+      customClaims: { role: 'ADMIN', status: 'APPROVED' },
+    });
+
+    // Mock Firestore users search: no other admins exist
+    (adminDb as any).collection = (colName: string) => ({
+      where: () => ({
+        where: () => ({
+          get: async () => ({
+            docs: [
+              { id: 'admin.target', data: () => ({ role: 'ADMIN', status: 'APPROVED', isActive: true }) },
+            ],
+          }),
+        }),
+      }),
+      doc: () => ({
+        set: async () => {},
+        get: async () => ({ exists: true }),
+      }),
+    });
+
+    // Try to reject the last admin
+    const res = await fetch(`${baseUrl}/api/v1/admin/user-approvals/admin.target/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_admin_token',
+      },
+      body: JSON.stringify({ reason: 'Malicious attempt to remove last admin' }),
+    });
+
+    assert.strictEqual(res.status, 400);
+    const data = await res.json();
+    assert.strictEqual(data.error.includes('Cannot reject the last remaining administrator'), true);
+  });
+
+  it('23. Admin suspends user: sets SUSPENDED status, revokes tokens, disables user in auth', async () => {
+    let disabledUid = '';
+    let disabledVal = false;
+    let revokedUid = '';
+    let updatedClaims: any = null;
+
+    (adminAuth as any).getUser = async (uid: string) => ({
+      uid,
+      email: `${uid}@example.com`,
+      customClaims: { role: 'CITIZEN', status: 'APPROVED' },
+    });
+    (adminAuth as any).updateUser = async (uid: string, props: any) => {
+      disabledUid = uid;
+      disabledVal = props.disabled;
+    };
+    (adminAuth as any).revokeRefreshTokens = async (uid: string) => {
+      revokedUid = uid;
+    };
+    (adminAuth as any).setCustomUserClaims = async (uid: string, claims: any) => {
+      updatedClaims = { uid, claims };
+    };
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user_1',
+      email: 'admin@mahasetu.gov.in',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000) - 10,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/admin/users/bad_actor_uid/suspend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_admin_token',
+      },
+      body: JSON.stringify({ reason: 'Fraudulent activity detected' }),
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(disabledUid, 'bad_actor_uid');
+    assert.strictEqual(disabledVal, true);
+    assert.strictEqual(revokedUid, 'bad_actor_uid');
+    assert.strictEqual(updatedClaims.claims.status, 'SUSPENDED');
+  });
+
+  it('24. Admin reinstates user: sets APPROVED status, revokes tokens, enables user in auth', async () => {
+    let disabledUid = '';
+    let disabledVal = true;
+    let revokedUid = '';
+    let updatedClaims: any = null;
+
+    (adminAuth as any).getUser = async (uid: string) => ({
+      uid,
+      email: `${uid}@example.com`,
+      customClaims: { role: 'CITIZEN', status: 'SUSPENDED' },
+    });
+    (adminAuth as any).updateUser = async (uid: string, props: any) => {
+      disabledUid = uid;
+      disabledVal = props.disabled;
+    };
+    (adminAuth as any).revokeRefreshTokens = async (uid: string) => {
+      revokedUid = uid;
+    };
+    (adminAuth as any).setCustomUserClaims = async (uid: string, claims: any) => {
+      updatedClaims = { uid, claims };
+    };
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user_1',
+      email: 'admin@mahasetu.gov.in',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000) - 10,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/admin/users/bad_actor_uid/reinstate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_admin_token',
+      },
+      body: JSON.stringify({}),
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(disabledUid, 'bad_actor_uid');
+    assert.strictEqual(disabledVal, false);
+    assert.strictEqual(revokedUid, 'bad_actor_uid');
+    assert.strictEqual(updatedClaims.claims.status, 'APPROVED');
+  });
+
+  it('25. Rejects privileged action when authAge exceeds 300s with 401 REAUTH_REQUIRED', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user_1',
+      email: 'admin@mahasetu.gov.in',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000) - 350, // 350 seconds old (exceeds 300s max)
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/admin/users/target_1/suspend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer stale_admin_token',
+      },
+      body: JSON.stringify({ reason: 'Suspension attempt with stale auth' }),
+    });
+
+    assert.strictEqual(res.status, 401);
+    const data = await res.json();
+    assert.strictEqual(data.code, 'REAUTH_REQUIRED');
+  });
+
+  it('26. Rejects admin action when target user is not found in auth with 404', async () => {
+    (adminAuth as any).getUser = async () => {
+      throw new Error('User not found');
+    };
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user_1',
+      email: 'admin@mahasetu.gov.in',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000) - 10,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/admin/users/nonexistent_user/suspend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_admin_token',
+      },
+      body: JSON.stringify({ reason: 'Target does not exist' }),
+    });
+
     assert.strictEqual(res.status, 404);
   });
 });
