@@ -35,3 +35,24 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. Direct citizen writes to `residentProfiles` are disabled in Firestore rules and all writes strictly route through the backend API with deep schema validation and Verhoeff verification.
 
 ---
+
+### T4 · Firestore rules tightening & coverage
+- **Status:** COMPLETED
+- **Files Changed:** `firestore.rules`, `tests/firestore-rules.test.ts`
+- **Tests Added:** Expanded unit test suite covering all 13 rules in `firestore.rules`:
+  1. `users`: Owner read/update allowlist, admin/auditor full read, signup pending validation, deletion blocked.
+  2. `applications`: Owner, department officer, admin, auditor read; all client writes forbidden.
+  3. `applicationVerifications`: Owner, admin, auditor, officer read; client writes forbidden.
+  4. `notifications`: Owner read/create, 'read' field update only, deletion forbidden.
+  5. `consents`: Owner, officer, admin read; status transition to GRANTED/DENIED by owner only.
+  6. `dataExchanges`: Admin, auditor, officer read; writes forbidden.
+  7. `integrationLogs`: Admin, auditor read; writes forbidden.
+  8. `auditLogs`: Admin, auditor read; signed-in append bound to matching caller UID only; update/delete forbidden.
+  9. `workflows`: Admin, auditor, officer read; writes forbidden.
+  10. `services` & `departments`: Signed-in read; admin write only.
+  11. `aiConversations` & `messages`: Owner and admin isolation for read/create/update/delete; cross-citizen access denied.
+  12. `residentProfiles`: Owner/admin/auditor read; citizen write denied (backend API route only); admin write allowed.
+  13. `/{document=**}`: Default deny-all on unknown collections.
+- **Residual Risk:** None. All rules enforce deny-by-default with zero reliance on document reads inside authorization helpers (`get()`).
+
+---
