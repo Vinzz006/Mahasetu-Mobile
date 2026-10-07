@@ -16,8 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../store/AuthContext';
 import { aiService, ChatMessage } from '../../services/aiService';
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { offlineSecurityService } from '../../services/offlineSecurityService';
 
 const QUICK_ACTIONS = [
   'Track my application',
@@ -29,9 +28,6 @@ const QUICK_ACTIONS = [
 
 const INITIAL_GREETING =
   "Hello! I'm MahaSetu AI, your digital assistant.\n\nI can help you understand your application, verification progress, consent, and how MahaSetu connects government services.";
-
-const getStorageKey = (uid: string) => `@mahasetu_chat_history_${uid}`;
-const getConvKey = (uid: string) => `@mahasetu_chat_conv_${uid}`;
 
 export const MahaSetuAIAssistant: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -74,24 +70,21 @@ export const MahaSetuAIAssistant: React.FC = () => {
       const loadUserChat = async () => {
         // Check user-scoped local storage first
         try {
-          const cachedJson = await AsyncStorage.getItem(getStorageKey(activeUid));
+          const cachedMessages = await offlineSecurityService.getSecureItem<ChatMessage[]>(activeUid, 'ai_messages');
           if (loadGeneration !== generationRef.current) return;
 
-          const cachedConv = await AsyncStorage.getItem(getConvKey(activeUid));
+          const cachedConv = await offlineSecurityService.getSecureItem<string>(activeUid, 'ai_conv_id');
           if (loadGeneration !== generationRef.current) return;
 
-          if (cachedJson) {
-            const parsed = JSON.parse(cachedJson);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              // Strictly verify every cached message belongs to activeUid
-              const verified = parsed.filter(
-                (m: any) => m && m.content && (m.userId === activeUid || m.id === `msg_welcome_${activeUid}`)
-              );
-              if (verified.length > 0) {
-                setMessages(verified.map((m: any) => ({ ...m, userId: activeUid, createdAt: new Date(m.createdAt) })));
-                if (cachedConv) setConversationId(cachedConv);
-                return;
-              }
+          if (cachedMessages && Array.isArray(cachedMessages) && cachedMessages.length > 0) {
+            // Strictly verify every cached message belongs to activeUid
+            const verified = cachedMessages.filter(
+              (m: any) => m && m.content && (m.userId === activeUid || m.id === `msg_welcome_${activeUid}`)
+            );
+            if (verified.length > 0) {
+              setMessages(verified.map((m: any) => ({ ...m, userId: activeUid, createdAt: new Date(m.createdAt) })));
+              if (cachedConv) setConversationId(cachedConv);
+              return;
             }
           }
         } catch (err) {
@@ -114,9 +107,9 @@ export const MahaSetuAIAssistant: React.FC = () => {
             setMessages(userScopedMessages);
             if (remote.conversationId) {
               setConversationId(remote.conversationId);
-              await AsyncStorage.setItem(getConvKey(activeUid), remote.conversationId);
+              await offlineSecurityService.setSecureItem(activeUid, 'ai_conv_id', remote.conversationId);
             }
-            await AsyncStorage.setItem(getStorageKey(activeUid), JSON.stringify(userScopedMessages));
+            await offlineSecurityService.setSecureItem(activeUid, 'ai_messages', userScopedMessages);
           } else {
             // Fresh user-specific welcome message
             const welcomeMsg: ChatMessage = {
@@ -127,7 +120,7 @@ export const MahaSetuAIAssistant: React.FC = () => {
               userId: activeUid,
             };
             setMessages([welcomeMsg]);
-            await AsyncStorage.setItem(getStorageKey(activeUid), JSON.stringify([welcomeMsg]));
+            await offlineSecurityService.setSecureItem(activeUid, 'ai_messages', [welcomeMsg]);
           }
         } catch (remoteErr) {
           if (loadGeneration === generationRef.current) {
@@ -196,7 +189,7 @@ export const MahaSetuAIAssistant: React.FC = () => {
       if (response.conversationId) {
         newConvId = response.conversationId;
         setConversationId(newConvId);
-        await AsyncStorage.setItem(getConvKey(currentUid), newConvId);
+        await offlineSecurityService.setSecureItem(currentUid, 'ai_conv_id', newConvId);
       }
 
       const aiMessage: ChatMessage = {
@@ -210,8 +203,8 @@ export const MahaSetuAIAssistant: React.FC = () => {
       const finalMessages = [...updatedAfterUser, aiMessage];
       setMessages(finalMessages);
 
-      // Persist strictly to user-scoped cache
-      await AsyncStorage.setItem(getStorageKey(currentUid), JSON.stringify(finalMessages));
+      // Persist strictly to user-scoped secure cache
+      await offlineSecurityService.setSecureItem(currentUid, 'ai_messages', finalMessages);
     } catch (err: any) {
       // If user switched accounts during error, discard error state
       if (user?.uid !== currentUid || generationRef.current !== sendGeneration) {
@@ -233,7 +226,7 @@ export const MahaSetuAIAssistant: React.FC = () => {
 
       const withError = [...updatedAfterUser, errMessage];
       setMessages(withError);
-      await AsyncStorage.setItem(getStorageKey(currentUid), JSON.stringify(withError));
+      await offlineSecurityService.setSecureItem(currentUid, 'ai_messages', withError);
     } finally {
       if (user?.uid === currentUid && generationRef.current === sendGeneration) {
         setIsThinking(false);

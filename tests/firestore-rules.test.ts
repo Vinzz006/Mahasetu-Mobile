@@ -29,7 +29,7 @@ async function isEmulatorAvailable(port = 8080): Promise<boolean> {
 }
 
 describe('Firestore Security Rules Comprehensive Unit Tests', () => {
-  let testEnv: RulesTestEnvironment | null = null;
+  let testEnv!: RulesTestEnvironment;
   let emulatorRunning = false;
 
   before(async () => {
@@ -181,7 +181,6 @@ describe('Firestore Security Rules Comprehensive Unit Tests', () => {
           secret: 'confidential',
         });
       });
-    }
   });
 
   // =========================================================================
