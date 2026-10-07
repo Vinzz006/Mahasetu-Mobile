@@ -70,3 +70,17 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. Audit logs are strictly written by the backend Admin SDK with cryptographically chained block hashes (`prevHash` + `hash`), rendering any unilateral modification or tampering immediately detectable.
 
 ---
+
+### T6 · Consent enforcement & officer document access control
+- **Status:** COMPLETED
+- **Files Changed:** `backend/src/lib/consentValidator.ts`, `backend/src/server.ts`, `services/consentService.ts`, `backend/src/__tests__/consent.test.ts`, `backend/src/__tests__/server-auth.test.ts`
+- **Tests Added:** Unit test suites covering:
+  - Departmental officer document access requiring explicit, non-expired citizen consent (`status === 'GRANTED'`, `expiresAt > now()`)
+  - 403 Forbidden rejection when consent is missing, DENIED, or EXPIRED
+  - 403 Forbidden rejection when officer attempts cross-department document access outside consented scope
+  - Statutory Admin / Auditor oversight bypass with audit logging
+  - Citizen ownership verification on consent grant/deny (`POST /api/v1/consent/:id/grant` and `/deny`)
+  - Real-time cryptographic chained audit logging for all document access requests (`DOCUMENT_ACCESSED` and `DOCUMENT_ACCESS_DENIED_NO_CONSENT`)
+- **Residual Risk:** None. All officer document accesses are verified on the backend against active citizen consent with zero ambient data sharing.
+
+---

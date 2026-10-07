@@ -20,6 +20,8 @@ import { geminiService } from './services/gemini.service';
 import { logger } from './lib/logger';
 import { verifyAppCheck } from './lib/appCheck';
 import { validateResidentProfilePayload } from './lib/residentProfileValidator';
+import { verifyOfficerConsent } from './lib/consentValidator';
+import { writeAuditLog } from './lib/auditWriter';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -185,6 +187,30 @@ export const ROUTE_TABLE: RouteConfig[] = [
     method: 'POST',
     pattern: /^\/api\/v1\/demo\/reset$/,
     roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 9a. Citizen Grant Consent
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/consent\/[^/]+\/grant$/,
+    roles: ['CITIZEN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 9b. Citizen Deny Consent
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/consent\/[^/]+\/deny$/,
+    roles: ['CITIZEN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 9c. Document Access Control Endpoint
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/documents\/access$/,
+    roles: ['CITIZEN', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'],
     requireApproved: true,
     requireVerifiedEmail: true,
   },
@@ -1600,6 +1626,134 @@ export function createBackendServer(): http.Server {
       if (req.method === 'POST' && pathname === '/api/v1/ai/cleanup') {
         const cleanupResult = await geminiService.quarantineLegacyConversations();
         sendJson(res, 200, { success: true, ...cleanupResult });
+        return;
+      }
+
+      // 9a. Citizen Grant Consent
+      const consentGrantMatch = pathname.match(/^\/api\/v1\/consent\/([^/]+)\/grant$/);
+      if (req.method === 'POST' && consentGrantMatch) {
+        const consentId = consentGrantMatch[1];
+        const cDoc = await adminDb.collection('consents').doc(consentId).get();
+        if (!cDoc.exists) {
+          sendError(res, 404, 'Consent request not found', requestId);
+          return;
+        }
+        const cData = cDoc.data()!;
+        if (cData.citizenUid !== claims.uid) {
+          sendError(res, 403, 'Forbidden: Cannot grant consent for another citizen', requestId);
+          return;
+        }
+
+        await adminDb.collection('consents').doc(consentId).update({
+          status: 'GRANTED',
+          grantedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        await writeAuditLog(adminDb, {
+          actorUid: claims.uid,
+          actorRole: claims.role || 'CITIZEN',
+          action: 'CITIZEN_GRANTED_CONSENT',
+          targetType: 'CONSENT',
+          targetId: consentId,
+          details: { targetDepartment: cData.targetDepartment, applicationId: cData.applicationId },
+        });
+
+        sendJson(res, 200, { success: true, message: 'Consent granted successfully.' });
+        return;
+      }
+
+      // 9b. Citizen Deny Consent
+      const consentDenyMatch = pathname.match(/^\/api\/v1\/consent\/([^/]+)\/deny$/);
+      if (req.method === 'POST' && consentDenyMatch) {
+        const consentId = consentDenyMatch[1];
+        const cDoc = await adminDb.collection('consents').doc(consentId).get();
+        if (!cDoc.exists) {
+          sendError(res, 404, 'Consent request not found', requestId);
+          return;
+        }
+        const cData = cDoc.data()!;
+        if (cData.citizenUid !== claims.uid) {
+          sendError(res, 403, 'Forbidden: Cannot deny consent for another citizen', requestId);
+          return;
+        }
+
+        await adminDb.collection('consents').doc(consentId).update({
+          status: 'DENIED',
+          deniedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        await writeAuditLog(adminDb, {
+          actorUid: claims.uid,
+          actorRole: claims.role || 'CITIZEN',
+          action: 'CITIZEN_DENIED_CONSENT',
+          targetType: 'CONSENT',
+          targetId: consentId,
+          details: { targetDepartment: cData.targetDepartment, applicationId: cData.applicationId },
+        });
+
+        sendJson(res, 200, { success: true, message: 'Consent denied successfully.' });
+        return;
+      }
+
+      // 9c. Document Access Control Endpoint
+      if (req.method === 'POST' && pathname === '/api/v1/documents/access') {
+        const citizenUid = typeof body.citizenUid === 'string' ? body.citizenUid.trim() : '';
+        const documentPath = typeof body.documentPath === 'string' ? body.documentPath.trim() : '';
+        const applicationId = typeof body.applicationId === 'string' ? body.applicationId.trim() : undefined;
+
+        if (!citizenUid || !documentPath) {
+          sendError(res, 400, 'Bad Request: "citizenUid" and "documentPath" are required.', requestId);
+          return;
+        }
+
+        // Citizens can only access their own documents
+        if (claims.role === 'CITIZEN') {
+          if (claims.uid !== citizenUid) {
+            sendError(res, 403, 'Forbidden: Citizens can only access their own documents.', requestId);
+            return;
+          }
+        } else {
+          // Department officers must have active citizen consent
+          const consentCheck = await verifyOfficerConsent({
+            db: adminDb,
+            citizenUid,
+            departmentId: claims.departmentId || claims.role || '',
+            officerRole: claims.role || '',
+            officerUid: claims.uid,
+            applicationId,
+          });
+
+          if (!consentCheck.allowed) {
+            await writeAuditLog(adminDb, {
+              actorUid: claims.uid,
+              actorRole: claims.role || 'UNKNOWN',
+              action: 'DOCUMENT_ACCESS_DENIED_NO_CONSENT',
+              targetType: 'DOCUMENT',
+              targetId: documentPath,
+              details: { citizenUid, reason: consentCheck.reason, departmentId: claims.departmentId },
+            });
+            sendError(res, 403, `Forbidden: ${consentCheck.reason || 'Active citizen consent required.'}`, requestId);
+            return;
+          }
+        }
+
+        await writeAuditLog(adminDb, {
+          actorUid: claims.uid,
+          actorRole: claims.role || 'UNKNOWN',
+          action: 'DOCUMENT_ACCESSED',
+          targetType: 'DOCUMENT',
+          targetId: documentPath,
+          details: { citizenUid, applicationId },
+        });
+
+        sendJson(res, 200, {
+          success: true,
+          allowed: true,
+          documentPath,
+          accessedAt: new Date().toISOString(),
+        });
         return;
       }
 

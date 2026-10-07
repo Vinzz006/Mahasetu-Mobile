@@ -1140,5 +1140,182 @@ describe('Backend Server Authentication & Security Tests', () => {
     assert.strictEqual(updatedProfileFields['passport.hasPassport'], false);
     assert.strictEqual(updatedProfileFields['passport.documentPath'], null);
   });
+
+  it('33. POST /api/v1/consent/:id/grant permits citizen owner (200) and forbids cross-citizen grant (403)', async () => {
+    let updatedStatus = '';
+    (adminDb as any).collection = (colName: string) => ({
+      doc: (docId: string) => ({
+        id: docId,
+        path: `${colName}/${docId}`,
+        get: async () => ({
+          exists: true,
+          id: docId,
+          data: () => ({ citizenUid: 'citizen_owner', targetDepartment: 'DEPARTMENT_A' }),
+        }),
+        set: async () => {},
+        update: async (fields: any) => {
+          updatedStatus = fields.status;
+        },
+      }),
+      orderBy: () => ({
+        limit: () => ({
+          get: async () => ({ empty: true, docs: [] }),
+        }),
+      }),
+    });
+
+    // Owner grant succeeds
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_owner',
+      email: 'owner@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res1 = await fetch(`${baseUrl}/api/v1/consent/consent_1/grant`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_owner_token',
+      },
+      body: JSON.stringify({}),
+    });
+    assert.strictEqual(res1.status, 200);
+    assert.strictEqual(updatedStatus, 'GRANTED');
+
+    // Attacker grant fails with 403
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_attacker',
+      email: 'attacker@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res2 = await fetch(`${baseUrl}/api/v1/consent/consent_1/grant`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer attacker_token',
+      },
+      body: JSON.stringify({}),
+    });
+    assert.strictEqual(res2.status, 403);
+  });
+
+  it('34. POST /api/v1/documents/access enforces consent for departmental officers', async () => {
+    (adminDb as any).collection = (colName: string) => ({
+      doc: (docId: string) => ({
+        id: docId,
+        path: `${colName}/${docId}`,
+        set: async () => {},
+      }),
+      where: (f1: string, op1: string, val1: any) => ({
+        where: (f2: string, op2: string, val2: any) => ({
+          get: async () => {
+            if (colName === 'consents') {
+              if (val1 === 'citizen_with_consent') {
+                return {
+                  empty: false,
+                  docs: [
+                    {
+                      id: 'consent_valid',
+                      data: () => ({
+                        citizenUid: 'citizen_with_consent',
+                        targetDepartment: 'DEPARTMENT_A',
+                        status: 'GRANTED',
+                        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+                      }),
+                    },
+                  ],
+                };
+              }
+              return { empty: true, docs: [] };
+            }
+            return { empty: true, docs: [] };
+          },
+        }),
+      }),
+      orderBy: () => ({
+        limit: () => ({
+          get: async () => ({ empty: true, docs: [] }),
+        }),
+      }),
+    });
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'officer_1',
+      email: 'officer@example.com',
+      role: 'DEPARTMENT_A',
+      departmentId: 'DEPARTMENT_A',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    // Access with consent -> 200
+    const resGranted = await fetch(`${baseUrl}/api/v1/documents/access`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_officer_token',
+      },
+      body: JSON.stringify({
+        citizenUid: 'citizen_with_consent',
+        documentPath: 'residentDocuments/citizen_with_consent/passport/pass.pdf',
+      }),
+    });
+    assert.strictEqual(resGranted.status, 200);
+
+    // Access without consent -> 403
+    const resDenied = await fetch(`${baseUrl}/api/v1/documents/access`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_officer_token',
+      },
+      body: JSON.stringify({
+        citizenUid: 'citizen_without_consent',
+        documentPath: 'residentDocuments/citizen_without_consent/passport/pass.pdf',
+      }),
+    });
+    assert.strictEqual(resDenied.status, 403);
+  });
+
+  it('35. POST /api/v1/documents/access allows Admin under statutory audit override', async () => {
+    (adminDb as any).collection = (colName: string) => ({
+      doc: (docId: string) => ({
+        id: docId,
+        path: `${colName}/${docId}`,
+        set: async () => {},
+      }),
+      orderBy: () => ({
+        limit: () => ({
+          get: async () => ({ empty: true, docs: [] }),
+        }),
+      }),
+    });
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user',
+      email: 'admin@example.com',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/documents/access`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer admin_token',
+      },
+      body: JSON.stringify({
+        citizenUid: 'any_citizen',
+        documentPath: 'residentDocuments/any_citizen/passport/pass.pdf',
+      }),
+    });
+    assert.strictEqual(res.status, 200);
+  });
 });
 
