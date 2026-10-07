@@ -247,3 +247,15 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. Development-only bundler sub-dependencies are isolated from runtime production environments.
 
 ---
+
+### T20 · Structured zero-PII logging, audit trails & security monitoring compliance
+- **Status:** COMPLETED
+- **Files Changed:** `backend/src/lib/logger.ts`, `backend/src/lib/auditWriter.ts`, `tests/audit-logger-appcheck.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Structured machine-readable JSON logging conforming to government compliance schema (`timestamp`, `level`, `event`, `actor`, `target`, `action`, `outcome`, `details`)
+  - Automatic deep PII redaction across auxiliary metadata (`aadhaarNumber`, `passwords`, `secrets`, `tokens`, `emails`, `phone numbers`)
+  - Tamper-evident cryptographic hash chain recording (`writeAuditLog`) and chain verification (`verifyAuditChain`)
+  - Real-time error monitoring with request correlation IDs
+- **Residual Risk:** None. All security events and administrative actions produce irreversible, tamper-evident audit trails with zero PII exposure.
+
+---
