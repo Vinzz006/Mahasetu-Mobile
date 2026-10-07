@@ -384,5 +384,187 @@ describe('Backend Server Authentication & Security Tests', () => {
     assert.strictEqual(savedFirestoreData.data.status, 'APPROVED');
     assert.strictEqual(savedFirestoreData.data.approvedBy, 'admin_user_1');
   });
+
+  it('13. Rejects user with unverified email with 403 Forbidden', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'unverified_user_1',
+      email: 'unverified@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: false,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/applications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer unverified_token',
+      },
+      body: JSON.stringify({ serviceId: 'SERVICE_01' }),
+    });
+
+    assert.strictEqual(res.status, 403);
+    const data = await res.json();
+    assert.strictEqual(data.error.includes('Verified email address required'), true);
+  });
+
+  it('14. Rejects user with missing status on requireApproved route with 403 Forbidden', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'no_status_user',
+      email: 'nostatus@example.com',
+      role: 'CITIZEN',
+      email_verified: true,
+      // status is omitted/undefined
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/applications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer no_status_token',
+      },
+      body: JSON.stringify({ serviceId: 'SERVICE_01' }),
+    });
+
+    assert.strictEqual(res.status, 403);
+    const data = await res.json();
+    assert.strictEqual(data.error.includes('Approved account required'), true);
+  });
+
+  it('15. Rejects user with rejected role with 403 Forbidden', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'rejected_user_1',
+      email: 'rejected@example.com',
+      role: 'rejected',
+      status: 'REJECTED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/resident-profile`, {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer rejected_token',
+      },
+    });
+
+    assert.strictEqual(res.status, 403);
+    const data = await res.json();
+    assert.strictEqual(data.error.includes('Invalid or unrecognized role'), true);
+  });
+
+  it('16. Rejects user with SUSPENDED status on requireApproved and requireApproved:false routes', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'suspended_user_1',
+      email: 'suspended@example.com',
+      role: 'CITIZEN',
+      status: 'SUSPENDED',
+      email_verified: true,
+    });
+
+    // 1. On requireApproved route (POST /applications) -> 403
+    const resApp = await fetch(`${baseUrl}/api/v1/applications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer suspended_token',
+      },
+      body: JSON.stringify({ serviceId: 'SERVICE_01' }),
+    });
+    assert.strictEqual(resApp.status, 403);
+
+    // 2. On requireApproved:false route (GET /resident-profile) -> 403
+    const resProf = await fetch(`${baseUrl}/api/v1/resident-profile`, {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer suspended_token',
+      },
+    });
+    assert.strictEqual(resProf.status, 403);
+    const profData = await resProf.json();
+    assert.strictEqual(profData.error.includes('Account is suspended or rejected'), true);
+  });
+
+  it('17. Rejects user on role/endpoint mismatch with 403 Forbidden', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'dept_a_officer_1',
+      email: 'officer.a@mahasetu.gov.in',
+      role: 'DEPARTMENT_A',
+      departmentId: 'DEPT_A',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    // Department officer trying to call Citizen-only endpoint (POST /applications)
+    const res = await fetch(`${baseUrl}/api/v1/applications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer officer_token',
+      },
+      body: JSON.stringify({ serviceId: 'SERVICE_01' }),
+    });
+
+    assert.strictEqual(res.status, 403);
+    const data = await res.json();
+    assert.strictEqual(data.error.includes('Insufficient role privileges'), true);
+  });
+
+  it('18. Allows PENDING citizen to access resident-profile but blocks application submission and AI chat', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'pending_citizen_1',
+      email: 'pending.citizen@example.com',
+      role: 'CITIZEN',
+      status: 'PENDING',
+      email_verified: true,
+    });
+
+    // Mock Firestore for residentProfile
+    (adminDb as any).collection = (colName: string) => ({
+      doc: (docId: string) => ({
+        get: async () => ({
+          exists: true,
+          data: () => ({ userId: docId, personalDetails: { firstName: 'Pending' } }),
+        }),
+      }),
+    });
+
+    // 1. GET /resident-profile -> 200 (allowed for onboarding)
+    const resProf = await fetch(`${baseUrl}/api/v1/resident-profile`, {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer pending_token',
+      },
+    });
+    assert.strictEqual(resProf.status, 200);
+
+    // 2. POST /applications -> 403 (blocked because status != APPROVED)
+    const resApp = await fetch(`${baseUrl}/api/v1/applications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer pending_token',
+      },
+      body: JSON.stringify({ serviceId: 'SERVICE_01' }),
+    });
+    assert.strictEqual(resApp.status, 403);
+
+    // 3. POST /ai/chat -> 403 (blocked because status != APPROVED)
+    const resAi = await fetch(`${baseUrl}/api/v1/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer pending_token',
+      },
+      body: JSON.stringify({ message: 'Hello AI' }),
+    });
+    assert.strictEqual(resAi.status, 403);
+  });
+
+  it('19. Rejects unknown endpoint with 404 Not Found', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/unknown-endpoint`, {
+      method: 'GET',
+    });
+    assert.strictEqual(res.status, 404);
+  });
 });
 
