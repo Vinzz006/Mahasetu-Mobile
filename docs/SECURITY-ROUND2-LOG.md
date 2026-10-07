@@ -126,4 +126,19 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 
 ---
 
+### T10 · Client route guards & deep link intent security
+- **Status:** COMPLETED
+- **Files Changed:** `components/auth/RoleGuard.tsx`, `app/+native-intent.tsx`, `app/(admin)/_layout.tsx`, `app/(auditor)/_layout.tsx`, `app/(department)/_layout.tsx`, `app/(citizen)/_layout.tsx`, `app/(pending)/_layout.tsx`, `tests/native-intent.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Deep link path validation and route allowlist filtering in `redirectSystemPath`
+  - Custom scheme normalization (`mahasetu://` and universal HTTPS links)
+  - Directory traversal neutralization (`..`, `%2e`)
+  - Pseudo-protocol and script injection neutralization (`javascript:`, `data:`, `vbscript:`)
+  - Rejection of unknown path targets to root `/`
+  - Client-side `<RoleGuard>` layout encapsulation across `(admin)`, `(auditor)`, `(department)`, `(citizen)`, and `(pending)` stacks
+- **Residual Risk:** None. Client-side routes are guarded by layout wrappers and all deep link intents are sanitized against injection.
+
+---
+
+
 
