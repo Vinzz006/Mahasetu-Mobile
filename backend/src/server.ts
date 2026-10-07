@@ -12,13 +12,14 @@ dotenv.config();
 
 import * as http from 'http';
 import * as crypto from 'crypto';
-import { adminAuth, adminDb, FieldValue, Transaction } from './lib/firebaseAdmin';
+import { adminAuth, adminDb, adminAppCheck, adminStorage, FieldValue, Transaction } from './lib/firebaseAdmin';
 import { sanitizeFirestorePayload, assertNoUndefinedValues } from './lib/firestoreUtils';
 import { twilioBackendService } from './notifications/twilio.service';
 import { APPLICATION_EVENTS, getSmsMessage } from './notifications/events';
 import { geminiService } from './services/gemini.service';
 import { logger } from './lib/logger';
 import { verifyAppCheck } from './lib/appCheck';
+import { validateResidentProfilePayload } from './lib/residentProfileValidator';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -323,6 +324,88 @@ export async function authorize(
   }
 
   return claims;
+}
+
+export async function checkNotLastAdmin(targetUid: string): Promise<boolean> {
+  try {
+    const adminSnap = await adminDb.collection('users')
+      .where('role', '==', 'ADMIN')
+      .where('status', '==', 'APPROVED')
+      .get();
+
+    const otherAdmins = adminSnap.docs.filter((d: any) => d.id !== targetUid && d.data().isActive !== false);
+    return otherAdmins.length > 0;
+  } catch (err) {
+    // Fail closed
+    return false;
+  }
+}
+
+export function didIdentityFieldsChange(oldProfile: any, newSanitized: any): boolean {
+  if (!oldProfile) return false;
+  const identitySections = ['personalDetails', 'address', 'identity', 'family'];
+  for (const sec of identitySections) {
+    if (newSanitized[sec]) {
+      const oldSec = oldProfile[sec] || {};
+      const newSec = newSanitized[sec];
+      for (const [k, v] of Object.entries(newSec)) {
+        if (JSON.stringify(v) !== JSON.stringify(oldSec[k])) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+export function computeProfileCompletion(profile: any): { percentage: number; isComplete: boolean } {
+  const missing: string[] = [];
+  const p = profile.personalDetails;
+  if (!p?.fullLegalName?.trim()) missing.push('Full Legal Name');
+  if (!p?.dateOfBirth?.trim()) missing.push('Date of Birth');
+  if (!p?.gender) missing.push('Gender');
+  if (!p?.maritalStatus) missing.push('Marital Status');
+  if (!p?.community) missing.push('Community');
+
+  const addr = profile.address;
+  if (!addr?.address?.trim()) missing.push('Residential Address');
+  if (!addr?.city?.trim()) missing.push('City');
+  if (!addr?.district?.trim()) missing.push('District');
+  if (!addr?.state?.trim()) missing.push('State');
+  if (!addr?.pinCode?.trim()) missing.push('PIN Code');
+
+  const c = profile.contact;
+  if (!c?.phoneNumber?.trim()) missing.push('Phone Number');
+  if (!c?.emailAddress?.trim()) missing.push('Email Address');
+
+  const f = profile.family;
+  const hasParentOrGuardian = f?.fatherName?.trim() || f?.motherName?.trim() || f?.guardianName?.trim();
+  if (!hasParentOrGuardian) missing.push('Parent / Guardian Name');
+
+  const id = profile.identity;
+  if (!id?.aadhaarReference?.trim()) missing.push('Aadhaar Reference');
+  if (!id?.panCardNumber?.trim()) missing.push('PAN Card Number');
+
+  const edu = profile.education;
+  if (!edu?.educationalQualification?.trim()) missing.push('Educational Qualification');
+
+  const b = profile.bank;
+  if (!b?.bankName?.trim()) missing.push('Bank Name');
+  if (!b?.accountHolderName?.trim()) missing.push('Account Holder Name');
+  if (!b?.accountNumber?.trim()) missing.push('Bank Account Number');
+  if (!b?.ifscCode?.trim()) missing.push('IFSC Code');
+
+  const pass = profile.passport;
+  if (pass?.hasPassport && !pass.documentPath) {
+    missing.push('Passport Document PDF');
+  }
+
+  const totalChecks = 19;
+  const filledCount = Math.max(0, totalChecks - missing.length);
+  const percentage = Math.round((filledCount / totalChecks) * 100);
+  const isComplete = missing.length === 0;
+
+  return { percentage, isComplete };
 }
 
 const ALLOWED_ORIGINS = process.env.CORS_ALLOWED_ORIGINS
@@ -1095,27 +1178,84 @@ export function createBackendServer(): http.Server {
 
       // 7b. POST / Save Resident Profile
       if (req.method === 'POST' && pathname === '/api/v1/resident-profile') {
+        if (body?.userId && typeof body.userId === 'string' && body.userId !== claims.uid && claims.role !== 'ADMIN') {
+          sendError(res, 403, 'Forbidden: Cannot modify another resident profile.', requestId);
+          return;
+        }
+
+        const valResult = validateResidentProfilePayload(body, claims.uid);
+        if (!valResult.valid || !valResult.sanitized) {
+          sendError(res, 422, `Unprocessable Entity: ${valResult.errors?.join('; ')}`, requestId);
+          return;
+        }
+
         try {
-          // Strictly enforce authenticated UID as document owner
-          body.userId = claims.uid;
-          body.updatedAt = new Date().toISOString();
-          if (!body.createdAt) {
-            body.createdAt = new Date().toISOString();
+          const profileRef = adminDb.collection('residentProfiles').doc(claims.uid);
+          const existingSnap = await profileRef.get();
+          const existingData = existingSnap.exists ? existingSnap.data()! : null;
+
+          let certificationStatus = existingData?.certificationStatus || 'PENDING';
+          let certifiedBy = existingData?.certifiedBy || null;
+          let certifiedAt = existingData?.certifiedAt || null;
+
+          // Check if previously certified identity was modified
+          if (existingData && existingData.certificationStatus === 'VERIFIED') {
+            const changed = didIdentityFieldsChange(existingData, valResult.sanitized);
+            if (changed) {
+              certificationStatus = 'PENDING';
+              certifiedBy = null;
+              certifiedAt = null;
+
+              // Reset status in users collection
+              await adminDb.collection('users').doc(claims.uid).set({
+                isVerified: false,
+                identityStatus: 'PENDING',
+                updatedAt: FieldValue.serverTimestamp(),
+              }, { merge: true });
+
+              logger.audit({
+                event: 'RESIDENT_IDENTITY_CERTIFICATION_RESET',
+                action: 'reset_identity_certification_on_profile_edit',
+                actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+                target: { resource: 'residentProfile', id: claims.uid },
+                outcome: 'SUCCESS',
+                details: { reason: 'Identity-bearing fields were modified post-verification' },
+              });
+            }
           }
 
-          // Citizens are NEVER permitted to self-certify identity via profile payload
-          delete body.certificationStatus;
-          delete body.certifiedBy;
-          delete body.certifiedAt;
-          delete body.isVerified;
+          const mergedProfile = {
+            ...(existingData || {}),
+            ...valResult.sanitized,
+          };
+          const { percentage, isComplete } = computeProfileCompletion(mergedProfile);
 
-          const sanitized = sanitizeFirestorePayload(body);
-          await adminDb.collection('residentProfiles').doc(claims.uid).set(sanitized, { merge: true });
+          const finalDocData = sanitizeFirestorePayload({
+            ...valResult.sanitized,
+            userId: claims.uid,
+            certificationStatus,
+            certifiedBy,
+            certifiedAt,
+            isComplete,
+            completionPercentage: percentage,
+            updatedAt: FieldValue.serverTimestamp(),
+            createdAt: existingData?.createdAt || FieldValue.serverTimestamp(),
+          });
+
+          await profileRef.set(finalDocData, { merge: true });
+
+          // Synchronize completion and profile flag to users collection
+          await adminDb.collection('users').doc(claims.uid).set({
+            hasResidentProfile: true,
+            identityStatus: certificationStatus,
+            profileCompletion: percentage,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
 
           sendJson(res, 200, {
             success: true,
             message: 'Government Resident Profile saved successfully',
-            profile: sanitized,
+            profile: finalDocData,
           });
         } catch (err: any) {
           sendError(res, 500, 'Failed to save resident profile', requestId, err);
@@ -1123,42 +1263,41 @@ export function createBackendServer(): http.Server {
         return;
       }
 
-      // 7c. DELETE Passport Metadata
+      // 7c. DELETE Passport Metadata & Storage File
       if (req.method === 'DELETE' && pathname === '/api/v1/resident-profile/passport') {
         try {
-          await adminDb.collection('residentProfiles').doc(claims.uid).update({
+          const profileRef = adminDb.collection('residentProfiles').doc(claims.uid);
+          const snap = await profileRef.get();
+          if (snap.exists) {
+            const pData = snap.data()!;
+            const docPath = pData.passport?.documentPath;
+            if (typeof docPath === 'string' && docPath.startsWith(`residentDocuments/${claims.uid}/passport/`)) {
+              try {
+                await adminStorage.bucket().file(docPath).delete({ ignoreNotFound: true });
+              } catch (storageErr: any) {
+                console.warn('[Server] Storage file delete warning:', storageErr.message);
+              }
+            }
+          }
+
+          await profileRef.update({
             'passport.hasPassport': false,
             'passport.documentPath': null,
             'passport.fileName': null,
             'passport.fileSize': null,
             'passport.uploadedAt': null,
-            updatedAt: new Date().toISOString(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
 
           sendJson(res, 200, {
             success: true,
-            message: 'Passport document metadata cleared successfully',
+            message: 'Passport document metadata and storage file cleared successfully',
           });
         } catch (err: any) {
           sendError(res, 500, 'Failed to clear passport metadata', requestId, err);
         }
         return;
       }
-
-async function checkNotLastAdmin(targetUid: string): Promise<boolean> {
-  try {
-    const adminSnap = await adminDb.collection('users')
-      .where('role', '==', 'ADMIN')
-      .where('status', '==', 'APPROVED')
-      .get();
-
-    const otherAdmins = adminSnap.docs.filter((d: any) => d.id !== targetUid && d.data().isActive !== false);
-    return otherAdmins.length > 0;
-  } catch (err) {
-    // Fail closed
-    return false;
-  }
-}
 
       // ==========================================
       // 8. Admin Privileged Routes (ADMIN Role Only)

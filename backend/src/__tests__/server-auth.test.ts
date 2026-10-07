@@ -2,7 +2,7 @@ import { describe, it, before, after, beforeEach } from 'node:test';
 import * as assert from 'node:assert';
 import * as http from 'http';
 import { createBackendServer, verifyFirebaseToken } from '../server';
-import { adminAuth, adminDb } from '../lib/firebaseAdmin';
+import { adminAuth, adminDb, adminStorage } from '../lib/firebaseAdmin';
 import { twilioBackendService } from '../notifications/twilio.service';
 
 describe('Backend Server Authentication & Security Tests', () => {
@@ -18,6 +18,7 @@ describe('Backend Server Authentication & Security Tests', () => {
   const originalGetUser = adminAuth.getUser.bind(adminAuth);
   const originalRevokeRefreshTokens = adminAuth.revokeRefreshTokens.bind(adminAuth);
   const originalUpdateUser = adminAuth.updateUser.bind(adminAuth);
+  const originalBucket = (adminStorage as any).bucket ? adminStorage.bucket.bind(adminStorage) : undefined;
   const originalSendSms = twilioBackendService.sendApplicationStatusSms.bind(twilioBackendService);
 
   before(async () => {
@@ -47,6 +48,11 @@ describe('Backend Server Authentication & Security Tests', () => {
     (adminAuth as any).setCustomUserClaims = async () => {};
     (adminAuth as any).revokeRefreshTokens = async () => {};
     (adminAuth as any).updateUser = async () => ({});
+    (adminStorage as any).bucket = () => ({
+      file: () => ({
+        delete: async () => {},
+      }),
+    });
     (adminDb as any).collection = (colName: string) => ({
       doc: (docId: string) => ({
         id: docId,
@@ -74,6 +80,9 @@ describe('Backend Server Authentication & Security Tests', () => {
     adminAuth.getUser = originalGetUser;
     adminAuth.revokeRefreshTokens = originalRevokeRefreshTokens;
     adminAuth.updateUser = originalUpdateUser;
+    if (originalBucket) {
+      (adminStorage as any).bucket = originalBucket;
+    }
     adminDb.runTransaction = originalRunTransaction;
     adminDb.batch = originalBatch;
     adminDb.collection = originalCollection;
@@ -882,6 +891,254 @@ describe('Backend Server Authentication & Security Tests', () => {
     });
 
     assert.strictEqual(res.status, 404);
+  });
+
+  it('27. POST /api/v1/resident-profile rejects unknown top-level or nested keys with 422', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_123',
+      email: 'citizen@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/resident-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_citizen_token',
+      },
+      body: JSON.stringify({
+        userId: 'citizen_123',
+        personalDetails: {
+          fullLegalName: 'Aarav Sharma',
+          dateOfBirth: '1995-05-15',
+          hackedKey: 'injectedValue', // Unknown nested key
+        },
+      }),
+    });
+
+    assert.strictEqual(res.status, 422);
+    const data = await res.json();
+    assert.ok(data.error.includes('Unknown') || data.error.includes('prohibited'), 'Should reject unknown property with 422');
+  });
+
+  it('28. POST /api/v1/resident-profile rejects raw Aadhaar leaks in unexpected fields with 422', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_123',
+      email: 'citizen@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/resident-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_citizen_token',
+      },
+      body: JSON.stringify({
+        userId: 'citizen_123',
+        personalDetails: {
+          fullLegalName: 'Aarav Sharma 234567890123', // Raw 12-digit leak in name
+        },
+      }),
+    });
+
+    assert.strictEqual(res.status, 422);
+    const data = await res.json();
+    assert.ok(data.error.includes('12-digit') || data.error.includes('Aadhaar'), 'Should reject raw Aadhaar leak');
+  });
+
+  it('29. POST /api/v1/resident-profile validates Aadhaar Verhoeff checksum and masks before storing', async () => {
+    let savedProfile: any = null;
+    (adminDb as any).collection = (colName: string) => ({
+      doc: (docId: string) => ({
+        id: docId,
+        path: `${colName}/${docId}`,
+        get: async () => ({
+          exists: true,
+          id: docId,
+          data: () => ({ userId: docId, certificationStatus: 'PENDING' }),
+        }),
+        set: async (data: any) => {
+          if (colName === 'residentProfiles') {
+            savedProfile = data;
+          }
+        },
+        update: async () => {},
+      }),
+    });
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_123',
+      email: 'citizen@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    // Valid Verhoeff Aadhaar: 234567890124 (Verhoeff check digit 4)
+    const res = await fetch(`${baseUrl}/api/v1/resident-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_citizen_token',
+      },
+      body: JSON.stringify({
+        userId: 'citizen_123',
+        personalDetails: {
+          fullLegalName: 'Aarav Sharma',
+          dateOfBirth: '1995-05-15',
+          gender: 'Male',
+        },
+        identity: {
+          aadhaarReference: '2345 6789 0124',
+          panCardNumber: 'ABCDE1234F',
+        },
+      }),
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.ok(savedProfile);
+    assert.strictEqual(savedProfile.identity.aadhaarReference, 'XXXX-XXXX-0124');
+    assert.strictEqual(savedProfile.identity.aadhaarLast4, '0124');
+  });
+
+  it('30. POST /api/v1/resident-profile resets VERIFIED certification to PENDING on identity mutation', async () => {
+    let savedProfile: any = null;
+
+    (adminDb as any).collection = (colName: string) => ({
+      doc: (docId: string) => ({
+        id: docId,
+        path: `${colName}/${docId}`,
+        get: async () => ({
+          exists: true,
+          id: docId,
+          data: () => ({
+            userId: docId,
+            certificationStatus: 'VERIFIED',
+            certifiedBy: 'officer_1',
+            certifiedAt: '2026-01-01T00:00:00.000Z',
+            personalDetails: { fullLegalName: 'Old Name', dateOfBirth: '1990-01-01' },
+          }),
+        }),
+        set: async (data: any) => {
+          if (colName === 'residentProfiles') {
+            savedProfile = data;
+          }
+        },
+        update: async () => {},
+      }),
+    });
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_123',
+      email: 'citizen@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/resident-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_citizen_token',
+      },
+      body: JSON.stringify({
+        userId: 'citizen_123',
+        personalDetails: {
+          fullLegalName: 'Updated Name',
+          dateOfBirth: '1990-01-01',
+        },
+      }),
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(savedProfile.certificationStatus, 'PENDING');
+    assert.strictEqual(savedProfile.certifiedBy, null);
+    assert.strictEqual(savedProfile.certifiedAt, null);
+  });
+
+  it('31. POST /api/v1/resident-profile forbids citizens from modifying other users profiles with 403', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_attacker',
+      email: 'attacker@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/resident-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid_citizen_token',
+      },
+      body: JSON.stringify({
+        userId: 'victim_user_999',
+        personalDetails: { fullLegalName: 'Victim Name' },
+      }),
+    });
+
+    assert.strictEqual(res.status, 403);
+  });
+
+  it('32. DELETE /api/v1/resident-profile/passport deletes storage file and resets passport metadata', async () => {
+    let deletedFilePath: string | null = null;
+    let updatedProfileFields: any = null;
+
+    (adminStorage as any).bucket = () => ({
+      file: (p: string) => ({
+        delete: async () => {
+          deletedFilePath = p;
+        },
+      }),
+    });
+
+    (adminDb as any).collection = (colName: string) => ({
+      doc: (docId: string) => ({
+        id: docId,
+        path: `${colName}/${docId}`,
+        get: async () => ({
+          exists: true,
+          id: docId,
+          data: () => ({
+            userId: docId,
+            passport: {
+              hasPassport: true,
+              documentPath: `residentDocuments/${docId}/passport/12345_passport.pdf`,
+              fileName: 'passport.pdf',
+            },
+          }),
+        }),
+        update: async (fields: any) => {
+          updatedProfileFields = fields;
+        },
+      }),
+    });
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_123',
+      email: 'citizen@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/resident-profile/passport`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: 'Bearer valid_citizen_token',
+      },
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(deletedFilePath, 'residentDocuments/citizen_123/passport/12345_passport.pdf');
+    assert.strictEqual(updatedProfileFields['passport.hasPassport'], false);
+    assert.strictEqual(updatedProfileFields['passport.documentPath'], null);
   });
 });
 
