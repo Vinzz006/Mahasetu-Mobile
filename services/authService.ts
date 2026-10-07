@@ -204,8 +204,17 @@ export const authService = {
         return 'Access temporarily disabled due to multiple failed login attempts. Try again later or reset password.';
       case 'permission-denied':
         return 'Permission denied. Please verify your connection and permissions.';
-      default:
-        return err?.message || 'An unexpected authentication error occurred. Please try again.';
+      case 'auth/internal-error':
+      case 'auth/network-request-failed':
+        return 'A network or service communication error occurred. Please try again.';
+      default: {
+        const rawMsg = typeof err?.message === 'string' ? err.message : '';
+        // If message contains sensitive details or system traces, mask with safe default
+        if (!rawMsg || /[:\\\/@{}\[\]_]|at |postgres|mysql|mongo|error/i.test(rawMsg)) {
+          return 'An unexpected authentication error occurred. Please try again.';
+        }
+        return rawMsg;
+      }
     }
   },
 

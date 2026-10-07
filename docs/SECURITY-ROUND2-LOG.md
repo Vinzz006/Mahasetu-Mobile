@@ -225,3 +225,14 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. End-to-end transport is encrypted via TLS 1.3/HTTPS and cleartext fallback is blocked at OS network layer.
 
 ---
+
+### T18 · Error handling, exception masking & zero information disclosure
+- **Status:** COMPLETED
+- **Files Changed:** `services/authService.ts`, `backend/src/server.ts`, `tests/error-disclosure.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Input path traversal sanitization (`validatePathParam`) preventing directory traversal, null-byte injection, and path parameter exploitation
+  - Authentication error normalization (`authService.mapAuthError`) masking database credentials, stack traces, and internal service exceptions
+  - Server error handler masking: 500 Internal Server Error responses return sanitized user guidance and correlation request IDs without stack dumps
+- **Residual Risk:** None. Diagnostic details are logged internally with correlation IDs while public responses disclose zero system topology or stack traces.
+
+---
