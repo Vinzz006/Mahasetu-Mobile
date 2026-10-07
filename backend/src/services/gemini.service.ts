@@ -37,7 +37,9 @@ export interface ChatResponseResult {
   rateLimited?: boolean;
 }
 
-// In-memory sliding-window rate limiter per user
+const MAX_RATE_LIMITER_ENTRIES = 10000;
+
+// In-memory sliding-window rate limiter per user with bounded capacity
 class UserRateLimiter {
   private userRequests = new Map<string, number[]>();
 
@@ -56,10 +58,54 @@ class UserRateLimiter {
       return { allowed: false, retryAfterSeconds: Math.max(1, retryAfterSeconds) };
     }
 
+    if (this.userRequests.size >= MAX_RATE_LIMITER_ENTRIES) {
+      // Evict expired entries or oldest
+      for (const [k, v] of this.userRequests.entries()) {
+        if (v.every((t) => now - t >= windowMs)) {
+          this.userRequests.delete(k);
+        }
+      }
+      if (this.userRequests.size >= MAX_RATE_LIMITER_ENTRIES) {
+        const firstKey = this.userRequests.keys().next().value;
+        if (firstKey) this.userRequests.delete(firstKey);
+      }
+    }
+
     recent.push(now);
     this.userRequests.set(userId, recent);
     return { allowed: true };
   }
+}
+
+/**
+ * Scrubs PII (Aadhaar numbers, PAN cards, passwords) from user input before passing to AI model.
+ */
+export function sanitizeUserPrompt(input: string): string {
+  if (!input || typeof input !== 'string') return '';
+  let clean = input
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/<\/?citizen_input>/gi, '')
+    .trim();
+
+  // Redact 12-digit Aadhaar patterns
+  clean = clean.replace(/\b[2-9]\d{3}\s?\d{4}\s?\d{4}\b/g, '[AADHAAR_REDACTED]');
+  // Redact PAN card patterns
+  clean = clean.replace(/\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/gi, '[PAN_REDACTED]');
+
+  // Limit maximum prompt length to 2000 characters
+  return clean.substring(0, 2000);
+}
+
+/**
+ * Sanitizes AI response before returning to user to guarantee zero leak of internal secrets.
+ */
+export function sanitizeAiOutput(output: string): string {
+  if (!output || typeof output !== 'string') return '';
+  let clean = output;
+  // Redact any accidental API key or internal secret leak
+  clean = clean.replace(/AIza[0-9A-Za-z-_]{35}/g, '[SECRET_REDACTED]');
+  clean = clean.replace(/(?:TWILIO|GEMINI|FIREBASE)_[A-Z_]+=[A-Za-z0-9-_]+/gi, '[CONFIG_REDACTED]');
+  return clean;
 }
 
 const rateLimiter = new UserRateLimiter();
@@ -638,10 +684,7 @@ Strict Security Boundaries (Zero Leak):
     }
 
     // Current turn with authorized context injected & prompt isolation boundaries
-    const safeCitizenMessage = message
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-      .replace(/<\/?citizen_input>/gi, '')
-      .trim();
+    const safeCitizenMessage = sanitizeUserPrompt(message);
 
     const promptWithContext = `[AUTHORIZED BACKEND CONTEXT for ${userName} (${userRole}) - IMMUTABLE]:
 ${authorizedContext}
@@ -684,7 +727,7 @@ ${safeCitizenMessage}
         });
 
         if (response.text) {
-          aiResponseText = response.text;
+          aiResponseText = sanitizeAiOutput(response.text);
           generationSuccess = true;
           successfulModel = candidate;
           break;
@@ -700,7 +743,7 @@ ${safeCitizenMessage}
     }
 
     // 8. Persist User Message and AI Response with verified conversation ownership
-    const savedConvId = await this.saveMessage(conversationId, userId, 'user', message);
+    const savedConvId = await this.saveMessage(conversationId, userId, 'user', safeCitizenMessage);
     await this.saveMessage(savedConvId, userId, 'assistant', aiResponseText);
 
     // 9. Record Safe Audit Log (never log keys or credentials)

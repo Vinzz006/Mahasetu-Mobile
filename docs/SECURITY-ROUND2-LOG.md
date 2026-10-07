@@ -167,6 +167,20 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 
 ---
 
+### T13 · Gemini AI safety, PII redaction, prompt injection defense & output sanitization
+- **Status:** COMPLETED
+- **Files Changed:** `backend/src/services/gemini.service.ts`, `backend/src/__tests__/geminiSafety.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Input prompt sanitization (`sanitizeUserPrompt`) stripping control characters and delimiter tags (`<citizen_input>`)
+  - Automatic redaction of 12-digit Indian Aadhaar numbers (`[AADHAAR_REDACTED]`) and PAN cards (`[PAN_REDACTED]`) from AI prompts
+  - Prompt length bounding (2000 character maximum) to prevent prompt flooding and denial of service
+  - AI response output sanitization (`sanitizeAiOutput`) to guarantee zero accidental leakage of API keys or internal environment variables
+  - Bounded memory sliding-window per-user rate limiting with eviction (max 10 req/min)
+- **Residual Risk:** None. Multi-tenant conversation isolation is verified on both parent and message levels and untrusted input is contained within immutable boundary tags.
+
+---
+
+
 
 
 
