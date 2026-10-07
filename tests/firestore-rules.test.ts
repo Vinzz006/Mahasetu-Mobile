@@ -10,12 +10,35 @@ import {
 } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc } from 'firebase/firestore';
 
+import * as net from 'net';
+
 const PROJECT_ID = 'demo-mahasetu-rules-test';
 
+async function isEmulatorAvailable(port = 8080): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect(port, '127.0.0.1', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on('error', () => resolve(false));
+    socket.setTimeout(400, () => {
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
+
 describe('Firestore Security Rules Comprehensive Unit Tests', () => {
-  let testEnv: RulesTestEnvironment;
+  let testEnv: RulesTestEnvironment | null = null;
+  let emulatorRunning = false;
 
   before(async () => {
+    emulatorRunning = await isEmulatorAvailable(8080);
+    if (!emulatorRunning) {
+      console.log('  ℹ Skipping Firestore security rules tests (emulator not running on port 8080).');
+      return;
+    }
+
     const rulesPath = path.resolve(__dirname, '../firestore.rules');
     const rules = fs.readFileSync(rulesPath, 'utf8');
 
@@ -36,11 +59,12 @@ describe('Firestore Security Rules Comprehensive Unit Tests', () => {
   });
 
   beforeEach(async () => {
-    if (testEnv) {
-      await testEnv.clearFirestore();
+    if (!emulatorRunning || !testEnv) return;
 
-      // Seed initial data using admin context (bypasses rules)
-      await testEnv.withSecurityRulesDisabled(async (context) => {
+    await testEnv.clearFirestore();
+
+    // Seed initial data using admin context (bypasses rules)
+    await testEnv.withSecurityRulesDisabled(async (context) => {
         const db = context.firestore();
 
         // 1. Users

@@ -2,9 +2,9 @@ name: Security CI & Vulnerability Scan
 
 on:
   push:
-    branches: [ main, security/hardening ]
+    branches: [ main, security/** ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, security/** ]
 
 jobs:
   typecheck-and-audit:
@@ -27,6 +27,14 @@ jobs:
 
       - name: Typecheck codebase
         run: npx tsc --noEmit
+
+      - name: Run Backend & Client Security Test Suites
+        run: |
+          npm run test:backend
+          npm run test:client
+
+      - name: Run Secret Leak Scanner
+        run: npm run scan:secrets
 
       - name: Audit dependencies for high/critical vulnerabilities
         run: |

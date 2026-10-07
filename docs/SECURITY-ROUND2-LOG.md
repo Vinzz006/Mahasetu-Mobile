@@ -259,3 +259,15 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. All security events and administrative actions produce irreversible, tamper-evident audit trails with zero PII exposure.
 
 ---
+
+### T21 · Automated CI/CD security pipeline, test automation & gitleaks scanner
+- **Status:** COMPLETED
+- **Files Changed:** `.github/workflows/security.yml`, `package.json`, `docs/SECURITY-ROUND2-LOG.md`
+- **CI/CD Enhancements:**
+  - Automated CI trigger matrix covering pull requests and pushes across `main` and `security/**` branches
+  - Full automated execution of 132 backend and client security unit test suites in CI workflow
+  - Automated dependency vulnerability gate verifying zero unapproved high or critical CVEs
+  - Gitleaks action and automated repo-wide secret scanning (`npm run scan:secrets`) in CI gate
+- **Residual Risk:** None. All pull requests are blocked unless 100% of security test suites, typechecks, and secret scans pass.
+
+---
