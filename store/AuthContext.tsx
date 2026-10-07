@@ -24,6 +24,7 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<UserProfile>;
   signUpWithEmail: (email: string, password: string, displayName: string) => Promise<UserProfile>;
   sendPasswordReset: (email: string) => Promise<void>;
+  reauthenticate: (password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   routeUserByRole: (profile: UserProfile) => Promise<void>;
@@ -213,6 +214,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await authService.sendPasswordReset(email);
   };
 
+  const reauthenticate = async (password: string): Promise<boolean> => {
+    return await authService.reauthenticate(password);
+  };
+
   const logout = async () => {
     if (user?.uid) {
       await offlineSecurityService.purgeUserData(user.uid);
@@ -251,6 +256,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signInWithEmail,
         signUpWithEmail,
         sendPasswordReset,
+        reauthenticate,
         logout,
         refreshProfile,
         routeUserByRole,

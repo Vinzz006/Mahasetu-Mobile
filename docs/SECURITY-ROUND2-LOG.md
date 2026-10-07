@@ -202,8 +202,14 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
   - Complete user data eviction (`purgeUserData`) upon user sign-out without cross-tenant interference
 - **Residual Risk:** None. Multi-user shared device scenarios prevent cross-tenant cached artifact discovery by guaranteeing namespace segregation and immediate logout purge.
 
+### T16 · Session management, token lifecycle & re-authentication controls
+- **Status:** COMPLETED
+- **Files Changed:** `services/authService.ts`, `services/api.ts`, `store/AuthContext.tsx`, `tests/session-lifecycle.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Complex password strength validation enforcing length (>=10), uppercase, lowercase, numeric, and special character rules
+  - Re-authentication handler (`authService.reauthenticate`) updating `auth_time` credential claims prior to privileged administrative mutations
+  - Client API interceptor error propagation preserving statutory `REAUTH_REQUIRED` status and preventing unauthorized token refresh loops
+  - Explicit sign-out cleanup with local user data purge (`offlineSecurityService.purgeUserData`)
+- **Residual Risk:** None. Strict token lifecycle guarantees that revoked or expired sessions terminate access synchronously.
+
 ---
-
-
-
-

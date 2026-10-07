@@ -9,6 +9,8 @@ import {
   signOut,
   onAuthStateChanged,
   User as FirebaseUser,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 } from 'firebase/auth';
 import {
   doc,
@@ -635,6 +637,20 @@ export const authService = {
   },
 
   /**
+   * Re-authenticate current user with their password before privileged actions
+   * Updates auth_time to current timestamp to satisfy backend checkReauthAge(300s)
+   */
+  async reauthenticate(password: string): Promise<boolean> {
+    const user = auth.currentUser;
+    if (!user || !user.email) {
+      throw new Error('No authenticated user session found for re-authentication.');
+    }
+    const credential = EmailAuthProvider.credential(user.email, password);
+    await reauthenticateWithCredential(user, credential);
+    return true;
+  },
+
+  /**
    * Refresh ID token to pick up new custom claims
    */
   async refreshIdToken(): Promise<string | null> {
@@ -656,3 +672,4 @@ export const authService = {
     }
   },
 };
+

@@ -49,16 +49,33 @@ class ApiClient {
 
       clearTimeout(timeoutId);
 
-      // On 401 Unauthorized: force refresh token once and retry
-      if (response.status === 401 && !isRetry && auth.currentUser) {
+      // On 401 Unauthorized: check if REAUTH_REQUIRED, otherwise force refresh token once and retry
+      if (response.status === 401) {
+        let errorData: any = {};
         try {
-          const refreshedToken = await auth.currentUser.getIdToken(true);
-          if (refreshedToken) {
-            return await this.request<T>(endpoint, options, true);
-          }
+          const cloned = response.clone();
+          errorData = await cloned.json();
         } catch {
-          // Token revoked or user disabled -> sign out immediately
-          await auth.signOut();
+          // Response body was not JSON or already consumed
+        }
+
+        if (errorData?.code === 'REAUTH_REQUIRED') {
+          const error = new Error(errorData.message || 'Re-authentication required for this privileged action') as any;
+          error.status = 401;
+          error.code = 'REAUTH_REQUIRED';
+          throw error;
+        }
+
+        if (!isRetry && auth.currentUser) {
+          try {
+            const refreshedToken = await auth.currentUser.getIdToken(true);
+            if (refreshedToken) {
+              return await this.request<T>(endpoint, options, true);
+            }
+          } catch {
+            // Token revoked or user disabled -> sign out immediately
+            await auth.signOut();
+          }
         }
       }
 
