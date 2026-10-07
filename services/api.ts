@@ -1,4 +1,5 @@
 import { auth } from '../lib/firebase';
+import { getAppCheckToken } from '../lib/appCheck';
 import { Config } from '../constants/config';
 
 class ApiClient {
@@ -18,6 +19,8 @@ class ApiClient {
 
   async request<T>(endpoint: string, options: RequestInit = {}, isRetry = false): Promise<T> {
     const token = await this.getAuthToken(isRetry);
+    const appCheckToken = await getAppCheckToken(isRetry);
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -26,6 +29,10 @@ class ApiClient {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    if (appCheckToken) {
+      headers['X-Firebase-AppCheck'] = appCheckToken;
     }
 
     const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;

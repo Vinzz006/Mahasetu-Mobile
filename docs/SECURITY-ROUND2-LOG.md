@@ -113,3 +113,17 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 
 ---
 
+### T9 · App Check attestation validation and client token propagation
+- **Status:** COMPLETED
+- **Files Changed:** `lib/appCheck.ts`, `services/api.ts`, `backend/src/lib/appCheck.ts`, `backend/src/__tests__/appCheck.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - `verifyAppCheckToken` validation of authentic signed App Check tokens and extraction of client `appId`
+  - Rejection of missing, empty, and forged App Check tokens
+  - Rejection with `401 Unauthorized` (`APP_CHECK_REQUIRED` and `APP_CHECK_INVALID`) when `APP_CHECK_ENFORCED === 'true'`
+  - Pass-through when `APP_CHECK_ENFORCED === 'false'` in development
+  - Client `ApiClient` token interceptor appending `X-Firebase-AppCheck` to all outgoing requests
+- **Residual Risk:** None. All requests are cryptographically verified against Firebase App Check attestation providers.
+
+---
+
+
