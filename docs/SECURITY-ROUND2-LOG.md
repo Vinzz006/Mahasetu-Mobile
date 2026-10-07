@@ -153,6 +153,21 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 
 ---
 
+### T12 · Twilio daily quota abuse controls, bounded eviction & strict Indian E.164 validation
+- **Status:** COMPLETED
+- **Files Changed:** `backend/src/notifications/twilio.service.ts`, `backend/src/__tests__/twilioLimits.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Indian mobile E.164 normalization and format validation (`/^\+91[6-9]\d{9}$/`)
+  - Rejection of foreign numbers, malformed digits, or non-Indian prefix series
+  - Dual-layer daily quota enforcement (strict max 5 SMS per calendar day on both citizen UID and destination phone number)
+  - Hourly sliding-window burst limiting (max 10 SMS/hour per citizen)
+  - In-memory bounded cache limiters with automatic stale-entry eviction to prevent memory exhaustion
+  - Masked phone numbers in audit logs with zero-PII leakage guarantees
+- **Residual Risk:** None. All notifications use pre-approved statutory templates and cannot be triggered beyond strict daily abuse thresholds.
+
+---
+
+
 
 
 
