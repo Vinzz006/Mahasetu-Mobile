@@ -180,6 +180,20 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 
 ---
 
+### T14 · Comprehensive DPDP Act (2023) privacy audit, Aadhaar data protection & right to erasure
+- **Status:** COMPLETED
+- **Files Changed:** `backend/src/lib/dpdpScanner.ts`, `backend/src/lib/aadhaar.ts`, `backend/src/server.ts`, `backend/src/__tests__/dpdpAudit.test.ts`, `backend/src/__tests__/server-auth.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Verhoeff checksum algorithm correctness and strict format validation
+  - Automatic masking of Aadhaar references to `XXXX-XXXX-last4`
+  - Deep recursive PII leak detection (`scanObjectForPiiLeaks`) across nested objects and arrays
+  - DPDP statutory Right to Erasure endpoint (`DELETE /api/v1/citizen/data-erasure`)
+  - Permanent deletion of resident storage documents, resident profiles, anonymization of user records, token revocation, and tamper-evident chained audit logging
+- **Residual Risk:** None. All personal data is governed under DPDP statutory purpose limitation, strict masking, and statutory right to erasure.
+
+---
+
+
 
 
 

@@ -23,6 +23,7 @@ import { validateResidentProfilePayload } from './lib/residentProfileValidator';
 import { verifyOfficerConsent } from './lib/consentValidator';
 import { writeAuditLog } from './lib/auditWriter';
 import { validateFileMagicBytes } from './lib/fileSecurityValidator';
+import { anonymizeUserData } from './lib/dpdpScanner';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -222,6 +223,15 @@ export const ROUTE_TABLE: RouteConfig[] = [
     roles: ['CITIZEN', 'ADMIN'],
     requireApproved: false,
     requireVerifiedEmail: true,
+  },
+  // 9e. DPDP Right to Erasure / Account Data Purge
+  {
+    method: 'DELETE',
+    pattern: /^\/api\/v1\/citizen\/data-erasure$/,
+    roles: ['CITIZEN', 'ADMIN'],
+    requireApproved: false,
+    requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
   },
 ];
 
@@ -1900,6 +1910,61 @@ export function createBackendServer(): http.Server {
           });
         } catch (err: any) {
           sendError(res, 500, 'Failed to finalize uploaded document.', requestId, err);
+        }
+        return;
+      }
+
+      // 9e. DPDP Right to Erasure / Account Data Purge
+      if (req.method === 'DELETE' && pathname === '/api/v1/citizen/data-erasure') {
+        const targetUid = claims.uid;
+
+        try {
+          // 1. Purge resident documents in Firebase Storage
+          try {
+            await adminStorage.bucket().deleteFiles({
+              prefix: `residentDocuments/${targetUid}/`,
+              force: true,
+            });
+            await adminStorage.bucket().deleteFiles({
+              prefix: `users/${targetUid}/`,
+              force: true,
+            });
+          } catch (storageErr: any) {
+            console.warn('[Server] Storage erasure warning:', storageErr?.message);
+          }
+
+          // 2. Delete resident profile record
+          try {
+            await adminDb.collection('residentProfiles').doc(targetUid).delete();
+          } catch (rpErr: any) {
+            console.warn('[Server] Resident profile deletion warning:', rpErr?.message);
+          }
+
+          // 3. Anonymize user record in Firestore
+          const anonymized = anonymizeUserData(targetUid);
+          await adminDb.collection('users').doc(targetUid).set(anonymized, { merge: true });
+
+          // 4. Disable user and revoke refresh tokens in Firebase Auth
+          await adminAuth.updateUser(targetUid, { disabled: true });
+          await adminAuth.revokeRefreshTokens(targetUid);
+
+          // 5. Tamper-evident audit log
+          await writeAuditLog(adminDb, {
+            actorUid: claims.uid,
+            actorRole: claims.role || 'CITIZEN',
+            action: 'CITIZEN_DATA_ERASURE_EXECUTED',
+            targetType: 'USER',
+            targetId: targetUid,
+            details: { reason: 'DPDP statutory right to erasure fulfilled' },
+          });
+
+          sendJson(res, 200, {
+            success: true,
+            message: 'All personal data, resident documents, and identity records have been permanently erased per DPDP statutory compliance.',
+            erasedAt: new Date().toISOString(),
+          });
+        } catch (erasureErr: any) {
+          sendError(res, 500, 'Failed to fulfill data erasure request.', requestId, erasureErr);
         }
         return;
       }

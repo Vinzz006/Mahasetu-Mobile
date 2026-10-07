@@ -60,6 +60,7 @@ describe('Backend Server Authentication & Security Tests', () => {
         get: async () => ({ exists: true, id: docId, data: () => ({ id: docId }) }),
         set: async () => {},
         update: async () => {},
+        delete: async () => {},
       }),
       orderBy: () => ({
         limit: () => ({
@@ -1489,5 +1490,34 @@ describe('Backend Server Authentication & Security Tests', () => {
     }
     assert.strictEqual(rateLimited, true);
   });
+
+  it('42. DELETE /api/v1/citizen/data-erasure executes DPDP Right to Erasure', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_erasure_test',
+      email: 'citizen.erasure@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000),
+    });
+
+    (adminStorage as any).bucket = () => ({
+      deleteFiles: async () => {},
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/citizen/data-erasure`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: 'Bearer citizen_token',
+      },
+    });
+
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+    assert.ok(data.message.includes('permanently erased'));
+    assert.ok(data.erasedAt);
+  });
 });
+
 

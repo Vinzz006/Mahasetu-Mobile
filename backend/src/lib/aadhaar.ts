@@ -116,3 +116,8 @@ export function containsRawAadhaarPattern(val: any, currentPath = ''): { found: 
 
   return { found: false };
 }
+
+export const validateVerhoeffChecksum = validateVerhoeff;
+export const maskAadhaarReference = maskAadhaar;
+export const findAadhaarLeaksInPayload = containsRawAadhaarPattern;
+
