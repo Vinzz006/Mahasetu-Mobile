@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Alert } from 'react-native';
 
 import { auth } from '../lib/firebase';
+import { offlineSecurityService } from '../services/offlineSecurityService';
 
 export type AuthState =
   | 'Loading'
@@ -213,6 +214,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
+    if (user?.uid) {
+      await offlineSecurityService.purgeUserData(user.uid);
+    }
     await authService.logout();
     setUser(null);
     setAuthState('Unauthenticated');

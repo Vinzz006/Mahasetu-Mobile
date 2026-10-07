@@ -191,10 +191,18 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
   - Permanent deletion of resident storage documents, resident profiles, anonymization of user records, token revocation, and tamper-evident chained audit logging
 - **Residual Risk:** None. All personal data is governed under DPDP statutory purpose limitation, strict masking, and statutory right to erasure.
 
+### T15 · Offline persistence security, user data isolation, TTL expiration & logout purge
+- **Status:** COMPLETED
+- **Files Changed:** `services/offlineSecurityService.ts`, `store/AuthContext.tsx`, `tests/offline-security.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - User-isolated storage key namespace partitioning (`@mahasetu:user_${uid}:${key}`)
+  - Automatic scrubbing of secrets, auth tokens, passwords, and sensitive credentials prior to storage
+  - Recursive masking of Aadhaar numbers (`XXXX-XXXX-last4`) in cached payloads
+  - Dynamic Time-To-Live (TTL) expiration enforcement on persisted cache items
+  - Complete user data eviction (`purgeUserData`) upon user sign-out without cross-tenant interference
+- **Residual Risk:** None. Multi-user shared device scenarios prevent cross-tenant cached artifact discovery by guaranteeing namespace segregation and immediate logout purge.
+
 ---
-
-
-
 
 
 
