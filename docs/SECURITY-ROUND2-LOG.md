@@ -213,3 +213,15 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. Strict token lifecycle guarantees that revoked or expired sessions terminate access synchronously.
 
 ---
+
+### T17 · Transport security, HTTPS enforcement & cleartext traffic lockdown
+- **Status:** COMPLETED
+- **Files Changed:** `constants/config.ts`, `app.json`, `tests/config-security.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Strict HTTPS endpoint validation in production (`validateUrlSecurity`) prohibiting insecure cleartext HTTP transports
+  - Explicit lockdown of cleartext HTTP traffic in mobile configuration (`android.usesCleartextTraffic: false`)
+  - Government transport security headers (`Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`)
+  - Cross-Origin Resource Sharing (CORS) restricted to verified origins
+- **Residual Risk:** None. End-to-end transport is encrypted via TLS 1.3/HTTPS and cleartext fallback is blocked at OS network layer.
+
+---
