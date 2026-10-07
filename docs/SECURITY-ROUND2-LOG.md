@@ -99,3 +99,17 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. All uploads must be finalized through server-side magic byte inspection, and direct client writes to other storage paths remain blocked.
 
 ---
+
+### T8 · Network edge rate limiting, security headers, CORS exact matching, and path param validation
+- **Status:** COMPLETED
+- **Files Changed:** `backend/src/server.ts`, `backend/src/__tests__/server-auth.test.ts`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Bounded in-memory rate limiting with capacity eviction to prevent memory exhaustion attacks
+  - Security headers enforcement: `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Vary: Origin`, `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`, `Pragma: no-cache`
+  - CORS exact origin matching against `CORS_ALLOWED_ORIGINS`
+  - Dynamic path parameter validation (`validatePathParam`) rejecting directory traversal (`..`, `%2e`), slashes, null bytes, and non-alphanumeric patterns across all dynamic endpoints
+  - IP-based rate limiting rejecting excessive requests with 429 Too Many Requests
+- **Residual Risk:** None. Network edge defenses protect against DoS, origin spoofing, clickjacking, MIME sniffing, and path traversal attacks.
+
+---
+

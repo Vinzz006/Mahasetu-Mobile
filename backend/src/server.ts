@@ -234,11 +234,12 @@ export function findRoute(method: string, pathname: string): RouteConfig | null 
   return null;
 }
 
-// In-memory rate limiter per IP and per UID
+// In-memory bounded rate limiter per IP and per UID with max capacity cap
 interface RateLimitEntry {
   count: number;
   resetTime: number;
 }
+const MAX_RATE_LIMIT_ENTRIES = 10000;
 const ipRateLimits = new Map<string, RateLimitEntry>();
 const uidRateLimits = new Map<string, RateLimitEntry>();
 
@@ -246,6 +247,18 @@ function checkRateLimit(key: string, map: Map<string, RateLimitEntry>, limit: nu
   const now = Date.now();
   const entry = map.get(key);
   if (!entry || now > entry.resetTime) {
+    if (map.size >= MAX_RATE_LIMIT_ENTRIES) {
+      // Evict expired entries or oldest if full
+      for (const [k, v] of map.entries()) {
+        if (now > v.resetTime) {
+          map.delete(k);
+        }
+      }
+      if (map.size >= MAX_RATE_LIMIT_ENTRIES) {
+        const firstKey = map.keys().next().value;
+        if (firstKey) map.delete(firstKey);
+      }
+    }
     map.set(key, { count: 1, resetTime: now + windowMs });
     return true;
   }
@@ -266,6 +279,17 @@ function checkRateLimit(key: string, map: Map<string, RateLimitEntry>, limit: nu
     if (now > v.resetTime) uidRateLimits.delete(k);
   }
 }, 5 * 60 * 1000) as unknown as NodeJS.Timeout).unref();
+
+/**
+ * Validates dynamic path parameters against traversal attacks and injection.
+ */
+export function validatePathParam(param: string): boolean {
+  if (!param || typeof param !== 'string') return false;
+  if (param.includes('..') || param.includes('/') || param.includes('\\') || param.includes('\0') || param.includes('%2e')) {
+    return false;
+  }
+  return /^[a-zA-Z0-9_.-]{1,100}$/.test(param);
+}
 
 /**
  * Authenticates Firebase ID Token passed in Authorization: Bearer <token>
@@ -451,9 +475,9 @@ function setSecurityHeaders(req: http.IncomingMessage, res: http.ServerResponse)
   const origin = req.headers.origin;
   if (origin) {
     const cleanOrigin = origin.trim().toLowerCase();
+    res.setHeader('Vary', 'Origin');
     if (ALLOWED_ORIGINS.length > 0 && ALLOWED_ORIGINS.includes(cleanOrigin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Vary', 'Origin');
     } else if (process.env.NODE_ENV !== 'production') {
       if (
         cleanOrigin.startsWith('http://localhost') ||
@@ -462,7 +486,6 @@ function setSecurityHeaders(req: http.IncomingMessage, res: http.ServerResponse)
         cleanOrigin.startsWith('http://192.168.')
       ) {
         res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Vary', 'Origin');
       }
     }
   }
@@ -473,6 +496,8 @@ function setSecurityHeaders(req: http.IncomingMessage, res: http.ServerResponse)
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
 
   const isTls = (req.socket as any).encrypted || req.headers['x-forwarded-proto'] === 'https';
   if (isTls) {
@@ -757,6 +782,10 @@ export function createBackendServer(): http.Server {
       if (req.method === 'POST' && pathname.match(/^\/api\/v1\/applications\/([^/]+)\/submit$/)) {
         const matches = pathname.match(/^\/api\/v1\/applications\/([^/]+)\/submit$/);
         const appId = matches![1];
+        if (!validatePathParam(appId)) {
+          sendError(res, 400, 'Invalid application ID format.', requestId);
+          return;
+        }
 
         const appRef = adminDb.collection('applications').doc(appId);
         const appSnap = await appRef.get();
@@ -809,6 +838,10 @@ export function createBackendServer(): http.Server {
       if (req.method === 'POST' && pathname.match(/^\/api\/v1\/applications\/([^/]+)\/verify$/)) {
         const matches = pathname.match(/^\/api\/v1\/applications\/([^/]+)\/verify$/);
         const appId = matches![1];
+        if (!validatePathParam(appId)) {
+          sendError(res, 400, 'Invalid application ID format.', requestId);
+          return;
+        }
 
         // Derive verification slot SOLELY from caller claims (ignore any body verifierRole / departmentId)
         const roleUpper = (claims.role || '').toUpperCase();
@@ -1013,6 +1046,10 @@ export function createBackendServer(): http.Server {
       if (req.method === 'POST' && pathname.match(/^\/api\/v1\/applications\/([^/]+)\/reject$/)) {
         const matches = pathname.match(/^\/api\/v1\/applications\/([^/]+)\/reject$/);
         const appId = matches![1];
+        if (!validatePathParam(appId)) {
+          sendError(res, 400, 'Invalid application ID format.', requestId);
+          return;
+        }
 
         const roleUpper = (claims.role || '').toUpperCase();
         const deptUpper = (claims.departmentId || '').toUpperCase();
@@ -1342,6 +1379,10 @@ export function createBackendServer(): http.Server {
       const approveMatch = pathname.match(/^\/api\/v1\/admin\/user-approvals\/([^/]+)\/approve$/);
       if (req.method === 'POST' && approveMatch) {
         const targetUid = approveMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid user ID format.', requestId);
+          return;
+        }
         if (targetUid === claims.uid) {
           sendError(res, 400, 'Forbidden: Self-approval or self-role assignment is prohibited.', requestId);
           return;
@@ -1421,6 +1462,10 @@ export function createBackendServer(): http.Server {
       const rejectMatch = pathname.match(/^\/api\/v1\/admin\/user-approvals\/([^/]+)\/reject$/);
       if (req.method === 'POST' && rejectMatch) {
         const targetUid = rejectMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid user ID format.', requestId);
+          return;
+        }
         if (targetUid === claims.uid) {
           sendError(res, 400, 'Forbidden: Self-rejection is not allowed.', requestId);
           return;
@@ -1479,6 +1524,10 @@ export function createBackendServer(): http.Server {
       const verifyCitizenMatch = pathname.match(/^\/api\/v1\/admin\/citizens\/([^/]+)\/verify$/);
       if (req.method === 'POST' && verifyCitizenMatch) {
         const targetUid = verifyCitizenMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid citizen UID format.', requestId);
+          return;
+        }
 
         try {
           await adminAuth.getUser(targetUid);
@@ -1525,6 +1574,10 @@ export function createBackendServer(): http.Server {
       const suspendMatch = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/suspend$/);
       if (req.method === 'POST' && suspendMatch) {
         const targetUid = suspendMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid user ID format.', requestId);
+          return;
+        }
         if (targetUid === claims.uid) {
           sendError(res, 400, 'Forbidden: Cannot suspend your own administrative account.', requestId);
           return;
@@ -1586,6 +1639,10 @@ export function createBackendServer(): http.Server {
       const reinstateMatch = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/reinstate$/);
       if (req.method === 'POST' && reinstateMatch) {
         const targetUid = reinstateMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid user ID format.', requestId);
+          return;
+        }
         let targetUserRecord: any;
         try {
           targetUserRecord = await adminAuth.getUser(targetUid);
@@ -1642,6 +1699,10 @@ export function createBackendServer(): http.Server {
       const consentGrantMatch = pathname.match(/^\/api\/v1\/consent\/([^/]+)\/grant$/);
       if (req.method === 'POST' && consentGrantMatch) {
         const consentId = consentGrantMatch[1];
+        if (!validatePathParam(consentId)) {
+          sendError(res, 400, 'Invalid consent ID format.', requestId);
+          return;
+        }
         const cDoc = await adminDb.collection('consents').doc(consentId).get();
         if (!cDoc.exists) {
           sendError(res, 404, 'Consent request not found', requestId);
@@ -1676,6 +1737,10 @@ export function createBackendServer(): http.Server {
       const consentDenyMatch = pathname.match(/^\/api\/v1\/consent\/([^/]+)\/deny$/);
       if (req.method === 'POST' && consentDenyMatch) {
         const consentId = consentDenyMatch[1];
+        if (!validatePathParam(consentId)) {
+          sendError(res, 400, 'Invalid consent ID format.', requestId);
+          return;
+        }
         const cDoc = await adminDb.collection('consents').doc(consentId).get();
         if (!cDoc.exists) {
           sendError(res, 404, 'Consent request not found', requestId);

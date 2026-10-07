@@ -1419,5 +1419,75 @@ describe('Backend Server Authentication & Security Tests', () => {
 
     assert.strictEqual(res.status, 403);
   });
+
+  it('39. Security headers are properly applied to responses', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/health`, {
+      method: 'GET',
+      headers: {
+        Origin: 'http://localhost:8081',
+      },
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.headers.get('x-content-type-options'), 'nosniff');
+    assert.strictEqual(res.headers.get('x-frame-options'), 'DENY');
+    assert.strictEqual(res.headers.get('referrer-policy'), 'no-referrer');
+    assert.strictEqual(res.headers.get('content-security-policy'), "default-src 'none'; frame-ancestors 'none'");
+    assert.strictEqual(res.headers.get('vary'), 'Origin');
+    assert.strictEqual(res.headers.get('access-control-allow-origin'), 'http://localhost:8081');
+  });
+
+  it('40. Dynamic path parameter traversal and injection attempts return 400 Bad Request', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'admin_user',
+      email: 'admin@example.com',
+      role: 'ADMIN',
+      status: 'APPROVED',
+      email_verified: true,
+      auth_time: Math.floor(Date.now() / 1000),
+    });
+
+    // Test path traversal with ..
+    const res1 = await fetch(`${baseUrl}/api/v1/admin/user-approvals/..%2fadmin/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer admin_token',
+      },
+      body: JSON.stringify({ role: 'CITIZEN' }),
+    });
+    // Will be 400 if matched with invalid param, or 404
+    assert.ok([400, 404].includes(res1.status));
+
+    // Test path param with invalid characters
+    const res2 = await fetch(`${baseUrl}/api/v1/admin/users/invalid%20user$!/suspend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer admin_token',
+      },
+      body: JSON.stringify({ reason: 'testing' }),
+    });
+    assert.strictEqual(res2.status, 400);
+  });
+
+  it('41. Excessive requests from an IP are rate-limited with 429', async () => {
+    let rateLimited = false;
+    for (let i = 0; i < 130; i++) {
+      const res = await fetch(`${baseUrl}/api/v1/health`, {
+        method: 'GET',
+        headers: {
+          'X-Forwarded-For': '198.51.100.25',
+        },
+      });
+      if (res.status === 429) {
+        rateLimited = true;
+        const body = await res.json();
+        assert.ok(body.error.includes('Too many requests'));
+        break;
+      }
+    }
+    assert.strictEqual(rateLimited, true);
+  });
 });
 
