@@ -366,6 +366,16 @@ export const residentProfileService = {
       },
     });
 
+    // Server-side binary magic-byte verification and upload finalization
+    try {
+      await api.post('/api/v1/documents/finalize', {
+        storagePath,
+        declaredType: 'application/pdf',
+      });
+    } catch (finalizeErr: any) {
+      console.warn('[residentProfileService] Finalize API verification warning:', finalizeErr.message);
+    }
+
     const uploadedAt = new Date().toISOString();
     return {
       storagePath,

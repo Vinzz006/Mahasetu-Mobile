@@ -61,6 +61,11 @@ describe('Backend Server Authentication & Security Tests', () => {
         set: async () => {},
         update: async () => {},
       }),
+      orderBy: () => ({
+        limit: () => ({
+          get: async () => ({ empty: true, docs: [] }),
+        }),
+      }),
       where: () => ({
         where: () => ({
           get: async () => ({
@@ -1316,6 +1321,103 @@ describe('Backend Server Authentication & Security Tests', () => {
       }),
     });
     assert.strictEqual(res.status, 200);
+  });
+
+  it('36. POST /api/v1/documents/finalize verifies authentic PDF file upload (200)', async () => {
+    const validPdfBuffer = Buffer.from('%PDF-1.7\n%stream\nendstream\n%%EOF');
+    (adminStorage as any).bucket = () => ({
+      file: () => ({
+        exists: async () => [true],
+        download: async () => [validPdfBuffer],
+        delete: async () => {},
+      }),
+    });
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_123',
+      email: 'citizen@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/documents/finalize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer citizen_token',
+      },
+      body: JSON.stringify({
+        storagePath: 'residentDocuments/citizen_123/passport/12345_pass.pdf',
+        declaredType: 'application/pdf',
+      }),
+    });
+
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.verified, true);
+    assert.strictEqual(data.detectedType, 'pdf');
+  });
+
+  it('37. POST /api/v1/documents/finalize purges disguised executable/text file with 422', async () => {
+    let purged = false;
+    const fakePdfBuffer = Buffer.from('MZ\x90\x00\x03\x00\x00\x00This is an executable binary');
+    (adminStorage as any).bucket = () => ({
+      file: () => ({
+        exists: async () => [true],
+        download: async () => [fakePdfBuffer],
+        delete: async () => {
+          purged = true;
+        },
+      }),
+    });
+
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_123',
+      email: 'citizen@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/documents/finalize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer citizen_token',
+      },
+      body: JSON.stringify({
+        storagePath: 'residentDocuments/citizen_123/passport/disguised.pdf',
+        declaredType: 'application/pdf',
+      }),
+    });
+
+    assert.strictEqual(res.status, 422);
+    assert.strictEqual(purged, true);
+  });
+
+  it('38. POST /api/v1/documents/finalize forbids cross-user directory finalization with 403', async () => {
+    (adminAuth as any).verifyIdToken = async () => ({
+      uid: 'citizen_attacker',
+      email: 'attacker@example.com',
+      role: 'CITIZEN',
+      status: 'APPROVED',
+      email_verified: true,
+    });
+
+    const res = await fetch(`${baseUrl}/api/v1/documents/finalize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer attacker_token',
+      },
+      body: JSON.stringify({
+        storagePath: 'residentDocuments/victim_user/passport/pass.pdf',
+        declaredType: 'application/pdf',
+      }),
+    });
+
+    assert.strictEqual(res.status, 403);
   });
 });
 

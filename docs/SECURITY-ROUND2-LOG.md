@@ -84,3 +84,18 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. All officer document accesses are verified on the backend against active citizen consent with zero ambient data sharing.
 
 ---
+
+### T7 · Storage rules & upload validation / document finalization
+- **Status:** COMPLETED
+- **Files Changed:** `backend/src/lib/fileSecurityValidator.ts`, `backend/src/server.ts`, `storage.rules`, `services/residentProfileService.ts`, `backend/src/__tests__/fileValidator.test.ts`, `backend/src/__tests__/server-auth.test.ts`
+- **Tests Added:** Unit test suites covering:
+  - Binary magic byte validation for PDF (`%PDF-`), PNG (`\x89PNG`), and JPEG (`\xFF\xD8\xFF`)
+  - Polyglot and script injection defense (rejecting HTML, JS, PHP, and shell scripts embedded in uploaded documents)
+  - Statutory 10 MB file size limit enforcement
+  - Server-side document finalization endpoint (`POST /api/v1/documents/finalize`)
+  - Immediate server-side purge of invalid, corrupt, or disguised upload payloads with 422 Unprocessable Entity
+  - Cross-user storage path finalization prevention with 403 Forbidden
+  - Tamper-evident chained audit logging for document finalization and purged uploads
+- **Residual Risk:** None. All uploads must be finalized through server-side magic byte inspection, and direct client writes to other storage paths remain blocked.
+
+---

@@ -22,6 +22,7 @@ import { verifyAppCheck } from './lib/appCheck';
 import { validateResidentProfilePayload } from './lib/residentProfileValidator';
 import { verifyOfficerConsent } from './lib/consentValidator';
 import { writeAuditLog } from './lib/auditWriter';
+import { validateFileMagicBytes } from './lib/fileSecurityValidator';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -212,6 +213,14 @@ export const ROUTE_TABLE: RouteConfig[] = [
     pattern: /^\/api\/v1\/documents\/access$/,
     roles: ['CITIZEN', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'],
     requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 9d. Document Upload Finalization & Magic Byte Verification
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/documents\/finalize$/,
+    roles: ['CITIZEN', 'ADMIN'],
+    requireApproved: false,
     requireVerifiedEmail: true,
   },
 ];
@@ -1754,6 +1763,79 @@ export function createBackendServer(): http.Server {
           documentPath,
           accessedAt: new Date().toISOString(),
         });
+        return;
+      }
+
+      // 9d. Document Upload Finalization & Magic Byte Verification
+      if (req.method === 'POST' && pathname === '/api/v1/documents/finalize') {
+        const storagePath = typeof body.storagePath === 'string' ? body.storagePath.trim() : '';
+        const declaredType = typeof body.declaredType === 'string' ? body.declaredType.trim() : undefined;
+        const applicationId = typeof body.applicationId === 'string' ? body.applicationId.trim() : undefined;
+
+        if (!storagePath) {
+          sendError(res, 400, 'Bad Request: "storagePath" is required.', requestId);
+          return;
+        }
+
+        // Enforce path ownership
+        const isOwner =
+          storagePath.startsWith(`residentDocuments/${claims.uid}/`) ||
+          storagePath.startsWith(`users/${claims.uid}/`) ||
+          claims.role === 'ADMIN';
+
+        if (!isOwner) {
+          sendError(res, 403, 'Forbidden: Cannot finalize documents outside your user directory.', requestId);
+          return;
+        }
+
+        try {
+          const fileRef = adminStorage.bucket().file(storagePath);
+          const [exists] = await fileRef.exists();
+          if (!exists) {
+            sendError(res, 404, 'Uploaded document file not found in storage.', requestId);
+            return;
+          }
+
+          const [buffer] = await fileRef.download();
+          const validation = validateFileMagicBytes(buffer, declaredType);
+
+          if (!validation.isValid) {
+            // Delete corrupt or disguised file immediately
+            await fileRef.delete({ ignoreNotFound: true });
+
+            await writeAuditLog(adminDb, {
+              actorUid: claims.uid,
+              actorRole: claims.role || 'CITIZEN',
+              action: 'DOCUMENT_UPLOAD_PURGED_MALICIOUS_OR_INVALID',
+              targetType: 'DOCUMENT',
+              targetId: storagePath,
+              details: { error: validation.error, declaredType },
+            });
+
+            sendError(res, 422, `Document validation failed: ${validation.error}`, requestId);
+            return;
+          }
+
+          await writeAuditLog(adminDb, {
+            actorUid: claims.uid,
+            actorRole: claims.role || 'CITIZEN',
+            action: 'DOCUMENT_UPLOAD_FINALIZED',
+            targetType: 'DOCUMENT',
+            targetId: storagePath,
+            details: { detectedType: validation.detectedType, sizeBytes: buffer.length, applicationId },
+          });
+
+          sendJson(res, 200, {
+            success: true,
+            verified: true,
+            storagePath,
+            detectedType: validation.detectedType,
+            sizeBytes: buffer.length,
+            finalizedAt: new Date().toISOString(),
+          });
+        } catch (err: any) {
+          sendError(res, 500, 'Failed to finalize uploaded document.', requestId, err);
+        }
         return;
       }
 
