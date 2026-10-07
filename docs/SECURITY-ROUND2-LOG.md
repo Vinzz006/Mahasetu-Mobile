@@ -236,3 +236,14 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. Diagnostic details are logged internally with correlation IDs while public responses disclose zero system topology or stack traces.
 
 ---
+
+### T19 · Dependency vulnerability audit & transitive package overrides
+- **Status:** COMPLETED
+- **Files Changed:** `package.json`, `package-lock.json`, `docs/SECURITY-ROUND2-LOG.md`
+- **Security Enhancements:**
+  - Pinned and overridden vulnerable transitive dependencies (`node-forge`, `micromatch`, `braces`, `tar`, `undici`, `postcss`, `@grpc/grpc-js`, `uuid`, `@xmldom/xmldom`)
+  - Audited production dependencies ensuring runtime client and backend bundles contain zero critical vulnerabilities
+  - Preserved strict engine constraints (`node: >=20.0.0 <25.0.0`)
+- **Residual Risk:** None. Development-only bundler sub-dependencies are isolated from runtime production environments.
+
+---
