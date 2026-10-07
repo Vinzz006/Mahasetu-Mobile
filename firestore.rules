@@ -165,19 +165,11 @@ service cloud.firestore {
     // ==========================================================
     // 8. AUDIT LOGS (auditLogs/{logId})
     // - Tamper-evident: Read-only for Admin & Auditor
-    // - Client create strictly bound to authenticated caller UID with allowlist
+    // - Writes: Strictly backend Admin SDK only (clients cannot create, update, or delete)
     // ==========================================================
     match /auditLogs/{logId} {
       allow read: if isAdmin() || isAuditor();
-      allow create: if signedIn() && (
-        isAdmin() || (
-          request.resource.data.actorUid == request.auth.uid
-          && request.resource.data.keys().hasOnly([
-            "actorUid", "actorRole", "action", "details", "metadata", "timestamp", "createdAt"
-          ])
-        )
-      );
-      allow update, delete: if false;
+      allow write: if false;
     }
 
     // ==========================================================

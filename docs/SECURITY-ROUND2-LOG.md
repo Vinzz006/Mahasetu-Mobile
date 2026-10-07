@@ -56,3 +56,17 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 - **Residual Risk:** None. All rules enforce deny-by-default with zero reliance on document reads inside authorization helpers (`get()`).
 
 ---
+
+### T5 · Audit log integrity & tamper-evident hash chain
+- **Status:** COMPLETED
+- **Files Changed:** `backend/src/lib/auditWriter.ts`, `firestore.rules`, `tests/firestore-rules.test.ts`, `backend/src/__tests__/auditWriter.test.ts`
+- **Tests Added:** Unit test suite in `auditWriter.test.ts` covering:
+  - Deterministic SHA-256 hash generation for canonical log fields
+  - Sequential verification of multi-block cryptographic hash chains (`verifyAuditChain`)
+  - Detection of payload/action modifications in historical audit blocks
+  - Detection of omitted, swapped, or broken chain links
+  - Backend Admin SDK `writeAuditLog` linking with monotonic sequence numbering
+  - Firestore rules rule-8 tightening to completely disallow direct client writes to `auditLogs`
+- **Residual Risk:** None. Audit logs are strictly written by the backend Admin SDK with cryptographically chained block hashes (`prevHash` + `hash`), rendering any unilateral modification or tampering immediately detectable.
+
+---

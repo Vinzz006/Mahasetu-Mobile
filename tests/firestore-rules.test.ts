@@ -344,21 +344,13 @@ describe('Firestore Security Rules Comprehensive Unit Tests', () => {
     await assertFails(getDoc(doc(citizenDb, 'workflows', 'wf_1')));
     await assertSucceeds(getDoc(doc(officerDb, 'workflows', 'wf_1')));
 
-    // Audit Logs: Citizen cannot read; citizen can only append log with matching actorUid
+    // Audit Logs: Citizen cannot read; citizen cannot write (writes are strictly backend Admin SDK only)
     await assertFails(getDoc(doc(citizenDb, 'auditLogs', 'audit_1')));
     await assertSucceeds(getDoc(doc(auditorDb, 'auditLogs', 'audit_1')));
 
-    await assertSucceeds(
-      addDoc(collection(citizenDb, 'auditLogs'), {
-        actorUid: 'citizen_alice',
-        actorRole: 'CITIZEN',
-        action: 'CITIZEN_LOGIN',
-        timestamp: '2026-01-01',
-      })
-    );
     await assertFails(
       addDoc(collection(citizenDb, 'auditLogs'), {
-        actorUid: 'impersonated_bob',
+        actorUid: 'citizen_alice',
         actorRole: 'CITIZEN',
         action: 'CITIZEN_LOGIN',
         timestamp: '2026-01-01',
