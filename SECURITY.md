@@ -95,7 +95,7 @@ git-filter-repo --invert-paths \
 
 # 4. Replace leaked API keys and passwords across commit history
 cat << 'EOF' > replace-patterns.txt
-AIzaSyAj6AAYqX9EN8eLuJiRErVXd74xZgdsucc==>REDACTED_HISTORICAL_API_KEY
+AIzaSy[REDACTED_HISTORICAL_KEY]==>REDACTED_HISTORICAL_API_KEY
 MahaSetu@2026!==>REDACTED_HISTORICAL_PASSWORD
 EOF
 

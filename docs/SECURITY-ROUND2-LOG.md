@@ -140,5 +140,19 @@ This log tracks all security hardening tasks performed in Security Round 2, incl
 
 ---
 
+### T11 · Repository secret hygiene, automated secret scanning & Gitleaks configuration
+- **Status:** COMPLETED
+- **Files Changed:** `.gitleaks.toml`, `scripts/scan-secrets.ts`, `tests/secret-scanning.test.ts`, `SECURITY.md`, `SECURITY-FIXES.md`, `docs/SECURITY-ROUND2-LOG.md`
+- **Tests Added:** Unit tests covering:
+  - Detection and flagging of Google/Firebase live API key signatures
+  - Detection and flagging of raw Twilio Auth Tokens
+  - Safe exception handling for developer placeholder test keys (`AIzaSyDummyDevKeyForTestingOnly00000`)
+  - Full automated repository scan verifying zero leaked credentials or unmasked secrets
+  - Gitleaks configuration `.gitleaks.toml` with enterprise secret rules and allowlists
+- **Residual Risk:** None. All historical documentation references are redacted and automated secret scanning is enforced in unit tests.
+
+---
+
+
 
 

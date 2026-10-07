@@ -95,7 +95,7 @@ All security enhancements are backed by automated tests:
 While the codebase is now fully hardened against static and architectural vulnerabilities, the project owner must execute the following operations in cloud provider consoles before opening the repository or promoting to production:
 
 ### 1. Rotate Exposed Historical API Keys
-- In Google Cloud Console (**APIs & Services > Credentials**), delete or regenerate the API key `AIzaSyAj6AAYqX9EN8eLuJiRErVXd74xZgdsucc` that was committed in the initial commit (`89677e7`).
+- In Google Cloud Console (**APIs & Services > Credentials**), delete or regenerate the API key `AIzaSy[REDACTED_HISTORICAL_API_KEY]` that was committed in the initial commit (`89677e7`).
 - Apply application restrictions (HTTP referrers for web, Android package name and SHA-1 fingerprint for Android).
 - Apply API restrictions so the key can only call Firebase Auth, Firestore, and Firebase Storage.
 
