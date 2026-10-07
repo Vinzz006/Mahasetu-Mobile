@@ -310,43 +310,17 @@ export const residentProfileService = {
     }
     profileData.updatedAt = new Date().toISOString();
 
-    const docRef = doc(db, 'residentProfiles', profileData.userId);
-
     // Clean payload of any undefined values
     const cleaned = JSON.parse(JSON.stringify(profileData));
 
-    try {
-      await setDoc(docRef, cleaned, { merge: true });
-
-      // Synchronize flag to users collection so queries are efficient
-      try {
-        const uRef = doc(db, 'users', profileData.userId);
-        await setDoc(
-          uRef,
-          {
-            hasResidentProfile: true,
-            identityStatus: profileData.certificationStatus || 'PENDING',
-            profileCompletion: percentage,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      } catch (uErr: any) {
-        console.warn('[residentProfileService] users sync warning:', uErr.message);
-      }
-
-      return cleaned as ResidentProfile;
-    } catch (firestoreErr: any) {
-      console.warn('[residentProfileService] Direct Firestore write failed, saving via backend API:', firestoreErr.message);
-      const apiResp = await api.post<{ success: boolean; profile: ResidentProfile }>(
-        '/api/v1/resident-profile',
-        cleaned
-      );
-      if (apiResp && apiResp.profile) {
-        return apiResp.profile;
-      }
-      return cleaned as ResidentProfile;
+    const apiResp = await api.post<{ success: boolean; profile: ResidentProfile }>(
+      '/api/v1/resident-profile',
+      cleaned
+    );
+    if (apiResp && apiResp.profile) {
+      return apiResp.profile;
     }
+    return cleaned as ResidentProfile;
   },
 
   /**
@@ -391,6 +365,16 @@ export const residentProfileService = {
         documentType: 'passport',
       },
     });
+
+    // Server-side binary magic-byte verification and upload finalization
+    try {
+      await api.post('/api/v1/documents/finalize', {
+        storagePath,
+        declaredType: 'application/pdf',
+      });
+    } catch (finalizeErr: any) {
+      console.warn('[residentProfileService] Finalize API verification warning:', finalizeErr.message);
+    }
 
     const uploadedAt = new Date().toISOString();
     return {

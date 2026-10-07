@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Alert } from 'react-native';
 
 import { auth } from '../lib/firebase';
+import { offlineSecurityService } from '../services/offlineSecurityService';
 
 export type AuthState =
   | 'Loading'
@@ -23,6 +24,7 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<UserProfile>;
   signUpWithEmail: (email: string, password: string, displayName: string) => Promise<UserProfile>;
   sendPasswordReset: (email: string) => Promise<void>;
+  reauthenticate: (password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   routeUserByRole: (profile: UserProfile) => Promise<void>;
@@ -212,7 +214,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await authService.sendPasswordReset(email);
   };
 
+  const reauthenticate = async (password: string): Promise<boolean> => {
+    return await authService.reauthenticate(password);
+  };
+
   const logout = async () => {
+    if (user?.uid) {
+      await offlineSecurityService.purgeUserData(user.uid);
+    }
     await authService.logout();
     setUser(null);
     setAuthState('Unauthenticated');
@@ -247,6 +256,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signInWithEmail,
         signUpWithEmail,
         sendPasswordReset,
+        reauthenticate,
         logout,
         refreshProfile,
         routeUserByRole,

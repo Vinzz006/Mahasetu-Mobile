@@ -1,5 +1,5 @@
 /**
- * Aadhaar Number Validation (Verhoeff Checksum Algorithm), Masking, and Hashing
+ * Aadhaar Number Validation (Verhoeff Checksum Algorithm), Masking, and Scanning
  * In compliance with Aadhaar Act and DPDP Act 2023.
  */
 
@@ -80,13 +80,16 @@ export function maskAadhaar(aadhaarOrRef?: string | null): string {
 
 /**
  * Scans a payload recursively to detect raw 12-digit Aadhaar patterns.
+ * Disallows 12-digit numeric sequences in any string field.
  */
 export function containsRawAadhaarPattern(val: any, currentPath = ''): { found: boolean; path?: string } {
   if (val === null || val === undefined) return { found: false };
 
   if (typeof val === 'string') {
+    // Look for 12 digit raw sequences (contiguous or space/hyphen delimited groups of 4)
     const normalized = val.replace(/[\s-]/g, '');
     if (/^\d{12}$/.test(normalized) || /\b\d{12}\b/.test(val) || /\b\d{4}[ -]\d{4}[ -]\d{4}\b/.test(val)) {
+      // If it is already masked (contains XXXX), it is safe
       if (!val.includes('XXXX') && !val.includes('xxxx')) {
         return { found: true, path: currentPath };
       }
@@ -113,4 +116,8 @@ export function containsRawAadhaarPattern(val: any, currentPath = ''): { found: 
 
   return { found: false };
 }
+
+export const validateVerhoeffChecksum = validateVerhoeff;
+export const maskAadhaarReference = maskAadhaar;
+export const findAadhaarLeaksInPayload = containsRawAadhaarPattern;
 

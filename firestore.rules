@@ -165,19 +165,11 @@ service cloud.firestore {
     // ==========================================================
     // 8. AUDIT LOGS (auditLogs/{logId})
     // - Tamper-evident: Read-only for Admin & Auditor
-    // - Client create strictly bound to authenticated caller UID with allowlist
+    // - Writes: Strictly backend Admin SDK only (clients cannot create, update, or delete)
     // ==========================================================
     match /auditLogs/{logId} {
       allow read: if isAdmin() || isAuditor();
-      allow create: if signedIn() && (
-        isAdmin() || (
-          request.resource.data.actorUid == request.auth.uid
-          && request.resource.data.keys().hasOnly([
-            "actorUid", "actorRole", "action", "details", "metadata", "timestamp", "createdAt"
-          ])
-        )
-      );
-      allow update, delete: if false;
+      allow write: if false;
     }
 
     // ==========================================================
@@ -221,7 +213,8 @@ service cloud.firestore {
 
     // ==========================================================
     // 12. GOVERNMENT RESIDENT PROFILES (residentProfiles/{uid})
-    // - Citizen owner cannot self-certify (forbidden from writing certificationStatus, certifiedAt, certifiedBy, isVerified)
+    // - Read: Citizen owner (their own profile), Admin, Auditor
+    // - Writes: Admin SDK (or admin role) only; all citizen mutations must pass through backend API validation
     // ==========================================================
     match /residentProfiles/{uid} {
       allow read: if signedIn() && (
@@ -229,32 +222,7 @@ service cloud.firestore {
         || isAdmin()
         || isAuditor()
       );
-      allow create: if signedIn() && (
-        isAdmin() || (
-          request.auth.uid == uid
-          && request.resource.data.userId == request.auth.uid
-          && (!request.resource.data.keys().hasAny(["certificationStatus", "certifiedAt", "certifiedBy", "isVerified"])
-              || request.resource.data.certificationStatus == "PENDING")
-          && request.resource.data.keys().hasOnly([
-            "userId", "profileType", "personalDetails", "address", "contact",
-            "family", "identity", "education", "bank", "passport", "departmentDetails",
-            "isComplete", "completionPercentage", "certificationStatus", "createdAt", "updatedAt"
-          ])
-        )
-      );
-      allow update: if signedIn() && (
-        isAdmin() || (
-          request.auth.uid == uid
-          && request.resource.data.userId == request.auth.uid
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["certificationStatus", "certifiedAt", "certifiedBy", "isVerified"])
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            "userId", "profileType", "personalDetails", "address", "contact",
-            "family", "identity", "education", "bank", "passport", "departmentDetails",
-            "isComplete", "completionPercentage", "updatedAt"
-          ])
-        )
-      );
-      allow delete: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     // ==========================================================

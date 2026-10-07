@@ -67,7 +67,9 @@ export function maskPhoneNumber(phone: string): string {
   return `${prefix}${stars}${suffix}`;
 }
 
-// In-memory sliding-window SMS rate limiter per citizen (cap at 10/hour)
+const MAX_LIMITER_ENTRIES = 10000;
+
+// In-memory sliding-window SMS rate limiter per citizen (cap at 10/hour) with bounded capacity
 class SmsRateLimiter {
   private history = new Map<string, number[]>();
 
@@ -78,13 +80,25 @@ class SmsRateLimiter {
     if (timestamps.length >= limitPerHour) {
       return false;
     }
+    if (this.history.size >= MAX_LIMITER_ENTRIES) {
+      // Evict expired entries or oldest
+      for (const [k, v] of this.history.entries()) {
+        if (v.every((t) => now - t >= oneHourMs)) {
+          this.history.delete(k);
+        }
+      }
+      if (this.history.size >= MAX_LIMITER_ENTRIES) {
+        const firstKey = this.history.keys().next().value;
+        if (firstKey) this.history.delete(firstKey);
+      }
+    }
     timestamps.push(now);
     this.history.set(citizenId, timestamps);
     return true;
   }
 }
 
-// In-memory daily SMS cap: strict maximum 5 SMS per citizen/phone per calendar day
+// In-memory daily SMS cap: strict maximum 5 SMS per citizen/phone per calendar day with bounded capacity
 export class DailySmsCap {
   private dailyRecords = new Map<string, { count: number; date: string }>();
 
@@ -92,6 +106,18 @@ export class DailySmsCap {
     const today = new Date().toISOString().split('T')[0];
     const rec = this.dailyRecords.get(identifier);
     if (!rec || rec.date !== today) {
+      if (this.dailyRecords.size >= MAX_LIMITER_ENTRIES) {
+        // Evict yesterday's records
+        for (const [k, v] of this.dailyRecords.entries()) {
+          if (v.date !== today) {
+            this.dailyRecords.delete(k);
+          }
+        }
+        if (this.dailyRecords.size >= MAX_LIMITER_ENTRIES) {
+          const firstKey = this.dailyRecords.keys().next().value;
+          if (firstKey) this.dailyRecords.delete(firstKey);
+        }
+      }
       this.dailyRecords.set(identifier, { count: 1, date: today });
       return true;
     }
@@ -229,6 +255,17 @@ export class TwilioMessagingService {
 
     const normalizedPhone = phoneValidation.normalized;
     const maskedPhone = maskPhoneNumber(normalizedPhone);
+
+    // Enforce daily SMS cap on the destination phone number as well
+    if (!dailySmsCap.isAllowed(normalizedPhone, 5)) {
+      console.warn(`[TwilioService] Abuse prevention: Destination phone ${maskedPhone} exceeded daily cap of 5 SMS.`);
+      return {
+        success: false,
+        skipped: true,
+        status: 'SKIPPED',
+        error: 'Destination phone daily SMS limit reached (maximum 5 SMS per day).',
+      };
+    }
 
     // 4. Dispatch SMS through Twilio Programmable Messaging API
     let twilioSid: string | null = null;

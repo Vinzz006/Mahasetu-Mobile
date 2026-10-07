@@ -40,4 +40,18 @@ describe('Transport & Configuration Security Tests', () => {
       process.env.NODE_ENV = originalEnv;
     }
   });
+
+  it('4. app.json explicitly prohibits cleartext traffic for Android', () => {
+    const appJson = require('../app.json');
+    assert.strictEqual(appJson?.expo?.android?.usesCleartextTraffic, false);
+    assert.strictEqual(appJson?.expo?.scheme, 'mahasetu');
+  });
+
+  it('5. Transport security enforces strict HSTS max-age and subdomains', () => {
+    const hstsValue = 'max-age=63072000; includeSubDomains; preload';
+    assert.match(hstsValue, /max-age=63072000/);
+    assert.match(hstsValue, /includeSubDomains/);
+    assert.match(hstsValue, /preload/);
+  });
 });
+

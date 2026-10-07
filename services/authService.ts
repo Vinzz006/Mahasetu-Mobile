@@ -9,6 +9,8 @@ import {
   signOut,
   onAuthStateChanged,
   User as FirebaseUser,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 } from 'firebase/auth';
 import {
   doc,
@@ -202,8 +204,17 @@ export const authService = {
         return 'Access temporarily disabled due to multiple failed login attempts. Try again later or reset password.';
       case 'permission-denied':
         return 'Permission denied. Please verify your connection and permissions.';
-      default:
-        return err?.message || 'An unexpected authentication error occurred. Please try again.';
+      case 'auth/internal-error':
+      case 'auth/network-request-failed':
+        return 'A network or service communication error occurred. Please try again.';
+      default: {
+        const rawMsg = typeof err?.message === 'string' ? err.message : '';
+        // If message contains sensitive details or system traces, mask with safe default
+        if (!rawMsg || /[:\\\/@{}\[\]_]|at |postgres|mysql|mongo|error/i.test(rawMsg)) {
+          return 'An unexpected authentication error occurred. Please try again.';
+        }
+        return rawMsg;
+      }
     }
   },
 
@@ -621,6 +632,34 @@ export const authService = {
   },
 
   /**
+   * Admin suspends user account
+   */
+  async suspendUser(targetUid: string, reason?: string): Promise<void> {
+    await api.post(`/api/v1/admin/users/${targetUid}/suspend`, { reason });
+  },
+
+  /**
+   * Admin reinstates user account
+   */
+  async reinstateUser(targetUid: string): Promise<void> {
+    await api.post(`/api/v1/admin/users/${targetUid}/reinstate`, {});
+  },
+
+  /**
+   * Re-authenticate current user with their password before privileged actions
+   * Updates auth_time to current timestamp to satisfy backend checkReauthAge(300s)
+   */
+  async reauthenticate(password: string): Promise<boolean> {
+    const user = auth.currentUser;
+    if (!user || !user.email) {
+      throw new Error('No authenticated user session found for re-authentication.');
+    }
+    const credential = EmailAuthProvider.credential(user.email, password);
+    await reauthenticateWithCredential(user, credential);
+    return true;
+  },
+
+  /**
    * Refresh ID token to pick up new custom claims
    */
   async refreshIdToken(): Promise<string | null> {
@@ -642,3 +681,4 @@ export const authService = {
     }
   },
 };
+

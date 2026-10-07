@@ -12,13 +12,18 @@ dotenv.config();
 
 import * as http from 'http';
 import * as crypto from 'crypto';
-import { adminAuth, adminDb, FieldValue, Transaction } from './lib/firebaseAdmin';
+import { adminAuth, adminDb, adminAppCheck, adminStorage, FieldValue, Transaction } from './lib/firebaseAdmin';
 import { sanitizeFirestorePayload, assertNoUndefinedValues } from './lib/firestoreUtils';
 import { twilioBackendService } from './notifications/twilio.service';
 import { APPLICATION_EVENTS, getSmsMessage } from './notifications/events';
 import { geminiService } from './services/gemini.service';
 import { logger } from './lib/logger';
 import { verifyAppCheck } from './lib/appCheck';
+import { validateResidentProfilePayload } from './lib/residentProfileValidator';
+import { verifyOfficerConsent } from './lib/consentValidator';
+import { writeAuditLog } from './lib/auditWriter';
+import { validateFileMagicBytes } from './lib/fileSecurityValidator';
+import { anonymizeUserData } from './lib/dpdpScanner';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -31,13 +36,220 @@ export interface VerifiedUserClaims {
   departmentId?: string | null;
   status?: string | null;
   emailVerified?: boolean;
+  authTime?: number;
 }
 
-// In-memory rate limiter per IP and per UID
+export interface RouteConfig {
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  pattern: RegExp;
+  roles: string[];
+  requireApproved?: boolean; // default true
+  requireVerifiedEmail?: boolean; // default true
+  maxAuthAgeSec?: number;
+}
+
+export const KNOWN_ROLES = ['CITIZEN', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'] as const;
+
+export const ROUTE_TABLE: RouteConfig[] = [
+  // 1. Submit Application
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/applications$/,
+    roles: ['CITIZEN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 2. Secondary Application Submit Trigger
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/applications\/[^/]+\/submit$/,
+    roles: ['CITIZEN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 3. Verify Application Stage
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/applications\/[^/]+\/verify$/,
+    roles: ['DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 4. Reject Application
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/applications\/[^/]+\/reject$/,
+    roles: ['DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 5. AI Assistant Chat
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/ai\/chat$/,
+    roles: ['CITIZEN', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 6. User AI Chat History
+  {
+    method: 'GET',
+    pattern: /^\/api\/v1\/ai\/history$/,
+    roles: ['CITIZEN', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 7a. GET Resident Profile (Allowed for PENDING citizen during onboarding)
+  {
+    method: 'GET',
+    pattern: /^\/api\/v1\/resident-profile$/,
+    roles: ['CITIZEN', 'ADMIN'],
+    requireApproved: false,
+    requireVerifiedEmail: true,
+  },
+  // 7b. POST Resident Profile (Allowed for PENDING citizen during onboarding)
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/resident-profile$/,
+    roles: ['CITIZEN', 'ADMIN'],
+    requireApproved: false,
+    requireVerifiedEmail: true,
+  },
+  // 7c. DELETE Passport Metadata
+  {
+    method: 'DELETE',
+    pattern: /^\/api\/v1\/resident-profile\/passport$/,
+    roles: ['CITIZEN', 'ADMIN'],
+    requireApproved: false,
+    requireVerifiedEmail: true,
+  },
+  // 8a. Admin User Approval
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/admin\/user-approvals\/[^/]+\/approve$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
+  },
+  // 8b. Admin User Rejection
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/admin\/user-approvals\/[^/]+\/reject$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
+  },
+  // 8c. Admin Citizen Identity Certification
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/admin\/citizens\/[^/]+\/verify$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
+  },
+  // 8d. Admin User Suspend
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/admin\/users\/[^/]+\/suspend$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
+  },
+  // 8e. Admin User Reinstate
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/admin\/users\/[^/]+\/reinstate$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
+  },
+  // Twilio Health & Monitoring
+  {
+    method: 'GET',
+    pattern: /^\/api\/v1\/admin\/twilio\/health$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // AI Chat Legacy Cleanup
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/ai\/cleanup$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // Demo Reset
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/demo\/reset$/,
+    roles: ['ADMIN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 9a. Citizen Grant Consent
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/consent\/[^/]+\/grant$/,
+    roles: ['CITIZEN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 9b. Citizen Deny Consent
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/consent\/[^/]+\/deny$/,
+    roles: ['CITIZEN'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 9c. Document Access Control Endpoint
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/documents\/access$/,
+    roles: ['CITIZEN', 'DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C', 'ADMIN', 'AUDITOR'],
+    requireApproved: true,
+    requireVerifiedEmail: true,
+  },
+  // 9d. Document Upload Finalization & Magic Byte Verification
+  {
+    method: 'POST',
+    pattern: /^\/api\/v1\/documents\/finalize$/,
+    roles: ['CITIZEN', 'ADMIN'],
+    requireApproved: false,
+    requireVerifiedEmail: true,
+  },
+  // 9e. DPDP Right to Erasure / Account Data Purge
+  {
+    method: 'DELETE',
+    pattern: /^\/api\/v1\/citizen\/data-erasure$/,
+    roles: ['CITIZEN', 'ADMIN'],
+    requireApproved: false,
+    requireVerifiedEmail: true,
+    maxAuthAgeSec: 300,
+  },
+];
+
+export function findRoute(method: string, pathname: string): RouteConfig | null {
+  for (const route of ROUTE_TABLE) {
+    if (route.method === method && route.pattern.test(pathname)) {
+      return route;
+    }
+  }
+  return null;
+}
+
+// In-memory bounded rate limiter per IP and per UID with max capacity cap
 interface RateLimitEntry {
   count: number;
   resetTime: number;
 }
+const MAX_RATE_LIMIT_ENTRIES = 10000;
 const ipRateLimits = new Map<string, RateLimitEntry>();
 const uidRateLimits = new Map<string, RateLimitEntry>();
 
@@ -45,6 +257,18 @@ function checkRateLimit(key: string, map: Map<string, RateLimitEntry>, limit: nu
   const now = Date.now();
   const entry = map.get(key);
   if (!entry || now > entry.resetTime) {
+    if (map.size >= MAX_RATE_LIMIT_ENTRIES) {
+      // Evict expired entries or oldest if full
+      for (const [k, v] of map.entries()) {
+        if (now > v.resetTime) {
+          map.delete(k);
+        }
+      }
+      if (map.size >= MAX_RATE_LIMIT_ENTRIES) {
+        const firstKey = map.keys().next().value;
+        if (firstKey) map.delete(firstKey);
+      }
+    }
     map.set(key, { count: 1, resetTime: now + windowMs });
     return true;
   }
@@ -67,6 +291,17 @@ function checkRateLimit(key: string, map: Map<string, RateLimitEntry>, limit: nu
 }, 5 * 60 * 1000) as unknown as NodeJS.Timeout).unref();
 
 /**
+ * Validates dynamic path parameters against traversal attacks and injection.
+ */
+export function validatePathParam(param: string): boolean {
+  if (!param || typeof param !== 'string') return false;
+  if (param.includes('..') || param.includes('/') || param.includes('\\') || param.includes('\0') || param.includes('%2e')) {
+    return false;
+  }
+  return /^[a-zA-Z0-9_.-]{1,100}$/.test(param);
+}
+
+/**
  * Authenticates Firebase ID Token passed in Authorization: Bearer <token>
  * Cryptographically verifies token signature, expiration, and revocation status
  * using Firebase Admin SDK.
@@ -87,11 +322,159 @@ export async function verifyFirebaseToken(authHeader: string | undefined): Promi
       departmentId: (decoded.departmentId as string) || null,
       status: (decoded.status as string) || null,
       emailVerified: !!decoded.email_verified,
+      authTime: decoded.auth_time,
     };
   } catch (err: any) {
     // Signature invalid, expired, revoked, or malformed
     return null;
   }
+}
+
+/**
+ * Authorizes request against the route table policy.
+ * Enforces email verification, strict role authorization, status gating, and auth age.
+ */
+export async function authorize(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  route: RouteConfig,
+  requestId: string
+): Promise<VerifiedUserClaims | null> {
+  const claims = await verifyFirebaseToken(req.headers.authorization);
+  if (!claims) {
+    sendError(res, 401, 'Unauthorized: Valid authentication token required', requestId);
+    return null;
+  }
+
+  const requireVerifiedEmail = route.requireVerifiedEmail !== false;
+  if (requireVerifiedEmail && !claims.emailVerified) {
+    sendError(res, 403, 'Forbidden: Verified email address required.', requestId);
+    return null;
+  }
+
+  const roleUpper = (claims.role || '').toUpperCase();
+  if (!roleUpper || !(KNOWN_ROLES as readonly string[]).includes(roleUpper) || claims.role === 'rejected') {
+    sendError(res, 403, 'Forbidden: Invalid or unrecognized role.', requestId);
+    return null;
+  }
+
+  if (route.roles && route.roles.length > 0) {
+    const upperAllowed = route.roles.map((r) => r.toUpperCase());
+    if (!upperAllowed.includes(roleUpper)) {
+      sendError(res, 403, 'Forbidden: Insufficient role privileges for this endpoint.', requestId);
+      return null;
+    }
+  }
+
+  const requireApproved = route.requireApproved !== false; // Default true
+  if (requireApproved) {
+    if (claims.status !== 'APPROVED') {
+      sendError(res, 403, 'Forbidden: Approved account required for this action.', requestId);
+      return null;
+    }
+  } else {
+    // For requireApproved: false routes (e.g. onboarding resident profile)
+    if (!claims.status || claims.status === 'REJECTED' || claims.status === 'SUSPENDED') {
+      sendError(res, 403, 'Forbidden: Account is suspended or rejected.', requestId);
+      return null;
+    }
+  }
+
+  if (route.maxAuthAgeSec) {
+    const authAgeSec = claims.authTime ? Math.floor(Date.now() / 1000) - claims.authTime : Infinity;
+    if (authAgeSec > route.maxAuthAgeSec) {
+      sendJson(res, 401, {
+        error: 'Re-authentication required for privileged action.',
+        code: 'REAUTH_REQUIRED',
+        requestId,
+      });
+      return null;
+    }
+  }
+
+  return claims;
+}
+
+export async function checkNotLastAdmin(targetUid: string): Promise<boolean> {
+  try {
+    const adminSnap = await adminDb.collection('users')
+      .where('role', '==', 'ADMIN')
+      .where('status', '==', 'APPROVED')
+      .get();
+
+    const otherAdmins = adminSnap.docs.filter((d: any) => d.id !== targetUid && d.data().isActive !== false);
+    return otherAdmins.length > 0;
+  } catch (err) {
+    // Fail closed
+    return false;
+  }
+}
+
+export function didIdentityFieldsChange(oldProfile: any, newSanitized: any): boolean {
+  if (!oldProfile) return false;
+  const identitySections = ['personalDetails', 'address', 'identity', 'family'];
+  for (const sec of identitySections) {
+    if (newSanitized[sec]) {
+      const oldSec = oldProfile[sec] || {};
+      const newSec = newSanitized[sec];
+      for (const [k, v] of Object.entries(newSec)) {
+        if (JSON.stringify(v) !== JSON.stringify(oldSec[k])) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+export function computeProfileCompletion(profile: any): { percentage: number; isComplete: boolean } {
+  const missing: string[] = [];
+  const p = profile.personalDetails;
+  if (!p?.fullLegalName?.trim()) missing.push('Full Legal Name');
+  if (!p?.dateOfBirth?.trim()) missing.push('Date of Birth');
+  if (!p?.gender) missing.push('Gender');
+  if (!p?.maritalStatus) missing.push('Marital Status');
+  if (!p?.community) missing.push('Community');
+
+  const addr = profile.address;
+  if (!addr?.address?.trim()) missing.push('Residential Address');
+  if (!addr?.city?.trim()) missing.push('City');
+  if (!addr?.district?.trim()) missing.push('District');
+  if (!addr?.state?.trim()) missing.push('State');
+  if (!addr?.pinCode?.trim()) missing.push('PIN Code');
+
+  const c = profile.contact;
+  if (!c?.phoneNumber?.trim()) missing.push('Phone Number');
+  if (!c?.emailAddress?.trim()) missing.push('Email Address');
+
+  const f = profile.family;
+  const hasParentOrGuardian = f?.fatherName?.trim() || f?.motherName?.trim() || f?.guardianName?.trim();
+  if (!hasParentOrGuardian) missing.push('Parent / Guardian Name');
+
+  const id = profile.identity;
+  if (!id?.aadhaarReference?.trim()) missing.push('Aadhaar Reference');
+  if (!id?.panCardNumber?.trim()) missing.push('PAN Card Number');
+
+  const edu = profile.education;
+  if (!edu?.educationalQualification?.trim()) missing.push('Educational Qualification');
+
+  const b = profile.bank;
+  if (!b?.bankName?.trim()) missing.push('Bank Name');
+  if (!b?.accountHolderName?.trim()) missing.push('Account Holder Name');
+  if (!b?.accountNumber?.trim()) missing.push('Bank Account Number');
+  if (!b?.ifscCode?.trim()) missing.push('IFSC Code');
+
+  const pass = profile.passport;
+  if (pass?.hasPassport && !pass.documentPath) {
+    missing.push('Passport Document PDF');
+  }
+
+  const totalChecks = 19;
+  const filledCount = Math.max(0, totalChecks - missing.length);
+  const percentage = Math.round((filledCount / totalChecks) * 100);
+  const isComplete = missing.length === 0;
+
+  return { percentage, isComplete };
 }
 
 const ALLOWED_ORIGINS = process.env.CORS_ALLOWED_ORIGINS
@@ -102,9 +485,9 @@ function setSecurityHeaders(req: http.IncomingMessage, res: http.ServerResponse)
   const origin = req.headers.origin;
   if (origin) {
     const cleanOrigin = origin.trim().toLowerCase();
+    res.setHeader('Vary', 'Origin');
     if (ALLOWED_ORIGINS.length > 0 && ALLOWED_ORIGINS.includes(cleanOrigin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Vary', 'Origin');
     } else if (process.env.NODE_ENV !== 'production') {
       if (
         cleanOrigin.startsWith('http://localhost') ||
@@ -113,7 +496,6 @@ function setSecurityHeaders(req: http.IncomingMessage, res: http.ServerResponse)
         cleanOrigin.startsWith('http://192.168.')
       ) {
         res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Vary', 'Origin');
       }
     }
   }
@@ -124,6 +506,8 @@ function setSecurityHeaders(req: http.IncomingMessage, res: http.ServerResponse)
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
 
   const isTls = (req.socket as any).encrypted || req.headers['x-forwarded-proto'] === 'https';
   if (isTls) {
@@ -241,6 +625,13 @@ export function createBackendServer(): http.Server {
         return;
       }
 
+      // Match route against ROUTE_TABLE
+      const route = findRoute(req.method || '', pathname);
+      if (!route) {
+        sendError(res, 404, 'Not Found', requestId);
+        return;
+      }
+
       // 0b. Firebase App Check Token Validation
       const appCheckPassed = await verifyAppCheck(req, res, requestId);
       if (!appCheckPassed) return;
@@ -260,25 +651,16 @@ export function createBackendServer(): http.Server {
         body = bodyResult.data || {};
       }
 
+      // Authorize all non-health endpoints via strict claims gate
+      const claims = await authorize(req, res, route, requestId);
+      if (!claims) return;
+
       // ==========================================
       // 1. Submit Application (Approved Citizen Only)
       // ==========================================
       if (req.method === 'POST' && pathname === '/api/v1/applications') {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-
         if (!checkRateLimit(claims.uid, uidRateLimits, 60, 60 * 1000)) {
           sendError(res, 429, 'Rate limit exceeded for your account.', requestId);
-          return;
-        }
-
-        const roleUpper = (claims.role || '').toUpperCase();
-        if (roleUpper !== 'CITIZEN') {
-          sendError(res, 403, 'Forbidden: Only citizens may create applications.', requestId);
-          return;
-        }
-        if (claims.status && claims.status !== 'APPROVED') {
-          sendError(res, 403, 'Forbidden: Citizen account must be approved to create applications.', requestId);
           return;
         }
 
@@ -408,11 +790,12 @@ export function createBackendServer(): http.Server {
       // 2. Secondary Application Submit Trigger
       // ==========================================
       if (req.method === 'POST' && pathname.match(/^\/api\/v1\/applications\/([^/]+)\/submit$/)) {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-
         const matches = pathname.match(/^\/api\/v1\/applications\/([^/]+)\/submit$/);
         const appId = matches![1];
+        if (!validatePathParam(appId)) {
+          sendError(res, 400, 'Invalid application ID format.', requestId);
+          return;
+        }
 
         const appRef = adminDb.collection('applications').doc(appId);
         const appSnap = await appRef.get();
@@ -463,11 +846,12 @@ export function createBackendServer(): http.Server {
       // 3. Verify Application Stage (Officers, Admin, Auditor)
       // ==========================================
       if (req.method === 'POST' && pathname.match(/^\/api\/v1\/applications\/([^/]+)\/verify$/)) {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-
         const matches = pathname.match(/^\/api\/v1\/applications\/([^/]+)\/verify$/);
         const appId = matches![1];
+        if (!validatePathParam(appId)) {
+          sendError(res, 400, 'Invalid application ID format.', requestId);
+          return;
+        }
 
         // Derive verification slot SOLELY from caller claims (ignore any body verifierRole / departmentId)
         const roleUpper = (claims.role || '').toUpperCase();
@@ -670,11 +1054,12 @@ export function createBackendServer(): http.Server {
       // 4. Reject Application (Officer, Admin, Auditor for their slot)
       // ==========================================
       if (req.method === 'POST' && pathname.match(/^\/api\/v1\/applications\/([^/]+)\/reject$/)) {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-
         const matches = pathname.match(/^\/api\/v1\/applications\/([^/]+)\/reject$/);
         const appId = matches![1];
+        if (!validatePathParam(appId)) {
+          sendError(res, 400, 'Invalid application ID format.', requestId);
+          return;
+        }
 
         const roleUpper = (claims.role || '').toUpperCase();
         const deptUpper = (claims.departmentId || '').toUpperCase();
@@ -777,9 +1162,6 @@ export function createBackendServer(): http.Server {
       // 5. AI Assistant Chat (Authenticated Citizen/User)
       // ==========================================
       if (req.method === 'POST' && pathname === '/api/v1/ai/chat') {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-
         const userId = claims.uid;
 
         // Retrieve user profile from Firestore users/{userId}
@@ -841,9 +1223,6 @@ export function createBackendServer(): http.Server {
       // 6. Get User's Isolated AI Chat History
       // ==========================================
       if (req.method === 'GET' && pathname === '/api/v1/ai/history') {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-
         const userId = claims.uid;
         const requestedConvId = url.searchParams.get('conversationId') || undefined;
 
@@ -866,9 +1245,6 @@ export function createBackendServer(): http.Server {
 
       // 7a. GET Resident Profile
       if (req.method === 'GET' && pathname === '/api/v1/resident-profile') {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-
         try {
           const profileDoc = await adminDb.collection('residentProfiles').doc(claims.uid).get();
           if (!profileDoc.exists) {
@@ -884,30 +1260,84 @@ export function createBackendServer(): http.Server {
 
       // 7b. POST / Save Resident Profile
       if (req.method === 'POST' && pathname === '/api/v1/resident-profile') {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
+        if (body?.userId && typeof body.userId === 'string' && body.userId !== claims.uid && claims.role !== 'ADMIN') {
+          sendError(res, 403, 'Forbidden: Cannot modify another resident profile.', requestId);
+          return;
+        }
+
+        const valResult = validateResidentProfilePayload(body, claims.uid);
+        if (!valResult.valid || !valResult.sanitized) {
+          sendError(res, 422, `Unprocessable Entity: ${valResult.errors?.join('; ')}`, requestId);
+          return;
+        }
 
         try {
-          // Strictly enforce authenticated UID as document owner
-          body.userId = claims.uid;
-          body.updatedAt = new Date().toISOString();
-          if (!body.createdAt) {
-            body.createdAt = new Date().toISOString();
+          const profileRef = adminDb.collection('residentProfiles').doc(claims.uid);
+          const existingSnap = await profileRef.get();
+          const existingData = existingSnap.exists ? existingSnap.data()! : null;
+
+          let certificationStatus = existingData?.certificationStatus || 'PENDING';
+          let certifiedBy = existingData?.certifiedBy || null;
+          let certifiedAt = existingData?.certifiedAt || null;
+
+          // Check if previously certified identity was modified
+          if (existingData && existingData.certificationStatus === 'VERIFIED') {
+            const changed = didIdentityFieldsChange(existingData, valResult.sanitized);
+            if (changed) {
+              certificationStatus = 'PENDING';
+              certifiedBy = null;
+              certifiedAt = null;
+
+              // Reset status in users collection
+              await adminDb.collection('users').doc(claims.uid).set({
+                isVerified: false,
+                identityStatus: 'PENDING',
+                updatedAt: FieldValue.serverTimestamp(),
+              }, { merge: true });
+
+              logger.audit({
+                event: 'RESIDENT_IDENTITY_CERTIFICATION_RESET',
+                action: 'reset_identity_certification_on_profile_edit',
+                actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+                target: { resource: 'residentProfile', id: claims.uid },
+                outcome: 'SUCCESS',
+                details: { reason: 'Identity-bearing fields were modified post-verification' },
+              });
+            }
           }
 
-          // Citizens are NEVER permitted to self-certify identity via profile payload
-          delete body.certificationStatus;
-          delete body.certifiedBy;
-          delete body.certifiedAt;
-          delete body.isVerified;
+          const mergedProfile = {
+            ...(existingData || {}),
+            ...valResult.sanitized,
+          };
+          const { percentage, isComplete } = computeProfileCompletion(mergedProfile);
 
-          const sanitized = sanitizeFirestorePayload(body);
-          await adminDb.collection('residentProfiles').doc(claims.uid).set(sanitized, { merge: true });
+          const finalDocData = sanitizeFirestorePayload({
+            ...valResult.sanitized,
+            userId: claims.uid,
+            certificationStatus,
+            certifiedBy,
+            certifiedAt,
+            isComplete,
+            completionPercentage: percentage,
+            updatedAt: FieldValue.serverTimestamp(),
+            createdAt: existingData?.createdAt || FieldValue.serverTimestamp(),
+          });
+
+          await profileRef.set(finalDocData, { merge: true });
+
+          // Synchronize completion and profile flag to users collection
+          await adminDb.collection('users').doc(claims.uid).set({
+            hasResidentProfile: true,
+            identityStatus: certificationStatus,
+            profileCompletion: percentage,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
 
           sendJson(res, 200, {
             success: true,
             message: 'Government Resident Profile saved successfully',
-            profile: sanitized,
+            profile: finalDocData,
           });
         } catch (err: any) {
           sendError(res, 500, 'Failed to save resident profile', requestId, err);
@@ -915,24 +1345,35 @@ export function createBackendServer(): http.Server {
         return;
       }
 
-      // 7c. DELETE Passport Metadata
+      // 7c. DELETE Passport Metadata & Storage File
       if (req.method === 'DELETE' && pathname === '/api/v1/resident-profile/passport') {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-
         try {
-          await adminDb.collection('residentProfiles').doc(claims.uid).update({
+          const profileRef = adminDb.collection('residentProfiles').doc(claims.uid);
+          const snap = await profileRef.get();
+          if (snap.exists) {
+            const pData = snap.data()!;
+            const docPath = pData.passport?.documentPath;
+            if (typeof docPath === 'string' && docPath.startsWith(`residentDocuments/${claims.uid}/passport/`)) {
+              try {
+                await adminStorage.bucket().file(docPath).delete({ ignoreNotFound: true });
+              } catch (storageErr: any) {
+                console.warn('[Server] Storage file delete warning:', storageErr.message);
+              }
+            }
+          }
+
+          await profileRef.update({
             'passport.hasPassport': false,
             'passport.documentPath': null,
             'passport.fileName': null,
             'passport.fileSize': null,
             'passport.uploadedAt': null,
-            updatedAt: new Date().toISOString(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
 
           sendJson(res, 200, {
             success: true,
-            message: 'Passport document metadata cleared successfully',
+            message: 'Passport document metadata and storage file cleared successfully',
           });
         } catch (err: any) {
           sendError(res, 500, 'Failed to clear passport metadata', requestId, err);
@@ -947,13 +1388,21 @@ export function createBackendServer(): http.Server {
       // 8a. Admin User Approval & Custom Claims Assignment
       const approveMatch = pathname.match(/^\/api\/v1\/admin\/user-approvals\/([^/]+)\/approve$/);
       if (req.method === 'POST' && approveMatch) {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
-
         const targetUid = approveMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid user ID format.', requestId);
+          return;
+        }
         if (targetUid === claims.uid) {
           sendError(res, 400, 'Forbidden: Self-approval or self-role assignment is prohibited.', requestId);
+          return;
+        }
+
+        let targetUserRecord: any;
+        try {
+          targetUserRecord = await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target user ${targetUid} not found in authentication registry.`, requestId);
           return;
         }
 
@@ -964,15 +1413,37 @@ export function createBackendServer(): http.Server {
           return;
         }
 
-        const isDept = ['DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C'].includes(role);
-        const departmentId = isDept && typeof body.departmentId === 'string' ? body.departmentId.toUpperCase() : null;
+        // Prevent demoting the last remaining admin
+        if (targetUserRecord.customClaims?.role === 'ADMIN' && role !== 'ADMIN') {
+          const hasOtherAdmin = await checkNotLastAdmin(targetUid);
+          if (!hasOtherAdmin) {
+            sendError(res, 400, 'Forbidden: Cannot demote the last remaining administrator.', requestId);
+            return;
+          }
+        }
 
-        // Set signed custom claims
+        const isDept = ['DEPARTMENT_A', 'DEPARTMENT_B', 'DEPARTMENT_C'].includes(role);
+        let departmentId: string | null = null;
+        if (isDept) {
+          if (!body.departmentId || body.departmentId.toUpperCase() !== role) {
+            sendError(res, 400, `Department ID must match the assigned department role ${role}.`, requestId);
+            return;
+          }
+          departmentId = role;
+        } else {
+          if (body.departmentId) {
+            sendError(res, 400, 'Department ID is not permitted for non-department roles.', requestId);
+            return;
+          }
+        }
+
+        // Set signed custom claims and revoke tokens for immediate demotion/role detection
         await adminAuth.setCustomUserClaims(targetUid, {
           role,
           departmentId,
           status: 'APPROVED',
         });
+        await adminAuth.revokeRefreshTokens(targetUid);
 
         // Update Firestore user document
         await adminDb.collection('users').doc(targetUid).set({
@@ -1000,25 +1471,42 @@ export function createBackendServer(): http.Server {
       // 8b. Admin User Rejection
       const rejectMatch = pathname.match(/^\/api\/v1\/admin\/user-approvals\/([^/]+)\/reject$/);
       if (req.method === 'POST' && rejectMatch) {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
-
         const targetUid = rejectMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid user ID format.', requestId);
+          return;
+        }
         if (targetUid === claims.uid) {
           sendError(res, 400, 'Forbidden: Self-rejection is not allowed.', requestId);
           return;
+        }
+
+        let targetUserRecord: any;
+        try {
+          targetUserRecord = await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target user ${targetUid} not found in authentication registry.`, requestId);
+          return;
+        }
+
+        if (targetUserRecord.customClaims?.role === 'ADMIN') {
+          const hasOtherAdmin = await checkNotLastAdmin(targetUid);
+          if (!hasOtherAdmin) {
+            sendError(res, 400, 'Forbidden: Cannot reject the last remaining administrator.', requestId);
+            return;
+          }
         }
 
         const reason = typeof body.reason === 'string' && body.reason.trim()
           ? body.reason.trim().substring(0, 500)
           : 'Registration rejected by administrator';
 
-        // Revoke claims
+        // Revoke claims and refresh tokens
         await adminAuth.setCustomUserClaims(targetUid, {
           role: 'rejected',
           status: 'REJECTED',
         });
+        await adminAuth.revokeRefreshTokens(targetUid);
 
         // Update Firestore user document
         await adminDb.collection('users').doc(targetUid).set({
@@ -1045,11 +1533,19 @@ export function createBackendServer(): http.Server {
       // 8c. Admin Citizen Identity Certification
       const verifyCitizenMatch = pathname.match(/^\/api\/v1\/admin\/citizens\/([^/]+)\/verify$/);
       if (req.method === 'POST' && verifyCitizenMatch) {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
-
         const targetUid = verifyCitizenMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid citizen UID format.', requestId);
+          return;
+        }
+
+        try {
+          await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target citizen ${targetUid} not found in authentication registry.`, requestId);
+          return;
+        }
+
         const isVerified = body.verified === true;
 
         await adminDb.collection('users').doc(targetUid).set({
@@ -1084,12 +1580,119 @@ export function createBackendServer(): http.Server {
         return;
       }
 
+      // 8d. Admin User Suspend
+      const suspendMatch = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/suspend$/);
+      if (req.method === 'POST' && suspendMatch) {
+        const targetUid = suspendMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid user ID format.', requestId);
+          return;
+        }
+        if (targetUid === claims.uid) {
+          sendError(res, 400, 'Forbidden: Cannot suspend your own administrative account.', requestId);
+          return;
+        }
+
+        let targetUserRecord: any;
+        try {
+          targetUserRecord = await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target user ${targetUid} not found in authentication registry.`, requestId);
+          return;
+        }
+
+        if (targetUserRecord.customClaims?.role === 'ADMIN') {
+          const hasOtherAdmin = await checkNotLastAdmin(targetUid);
+          if (!hasOtherAdmin) {
+            sendError(res, 400, 'Forbidden: Cannot suspend the last remaining administrator.', requestId);
+            return;
+          }
+        }
+
+        const reason = typeof body.reason === 'string' && body.reason.trim()
+          ? body.reason.trim().substring(0, 500)
+          : 'Account suspended by administrator';
+
+        const existingRole = targetUserRecord.customClaims?.role || 'CITIZEN';
+        const existingDept = targetUserRecord.customClaims?.departmentId || null;
+
+        await adminAuth.setCustomUserClaims(targetUid, {
+          role: existingRole,
+          departmentId: existingDept,
+          status: 'SUSPENDED',
+        });
+        await adminAuth.revokeRefreshTokens(targetUid);
+        await adminAuth.updateUser(targetUid, { disabled: true });
+
+        await adminDb.collection('users').doc(targetUid).set({
+          status: 'SUSPENDED',
+          isActive: false,
+          suspendedReason: reason,
+          suspendedBy: claims.uid,
+          suspendedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        logger.audit({
+          event: 'ADMIN_USER_SUSPENDED',
+          action: 'suspend_user_and_revoke_tokens',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+          details: { reason },
+        });
+        sendJson(res, 200, { success: true, message: `User ${targetUid} suspended.` });
+        return;
+      }
+
+      // 8e. Admin User Reinstate
+      const reinstateMatch = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/reinstate$/);
+      if (req.method === 'POST' && reinstateMatch) {
+        const targetUid = reinstateMatch[1];
+        if (!validatePathParam(targetUid)) {
+          sendError(res, 400, 'Invalid user ID format.', requestId);
+          return;
+        }
+        let targetUserRecord: any;
+        try {
+          targetUserRecord = await adminAuth.getUser(targetUid);
+        } catch {
+          sendError(res, 404, `Target user ${targetUid} not found in authentication registry.`, requestId);
+          return;
+        }
+
+        const existingRole = targetUserRecord.customClaims?.role || 'CITIZEN';
+        const existingDept = targetUserRecord.customClaims?.departmentId || null;
+
+        await adminAuth.setCustomUserClaims(targetUid, {
+          role: existingRole,
+          departmentId: existingDept,
+          status: 'APPROVED',
+        });
+        await adminAuth.revokeRefreshTokens(targetUid);
+        await adminAuth.updateUser(targetUid, { disabled: false });
+
+        await adminDb.collection('users').doc(targetUid).set({
+          status: 'APPROVED',
+          isActive: true,
+          reinstatedBy: claims.uid,
+          reinstatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        logger.audit({
+          event: 'ADMIN_USER_REINSTATED',
+          action: 'reinstate_user_and_enable_account',
+          actor: { uid: claims.uid, role: claims.role, departmentId: claims.departmentId },
+          target: { resource: 'user', id: targetUid },
+          outcome: 'SUCCESS',
+        });
+        sendJson(res, 200, { success: true, message: `User ${targetUid} reinstated.` });
+        return;
+      }
+
       // Twilio Health & Monitoring
       if (req.method === 'GET' && pathname === '/api/v1/admin/twilio/health') {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
-
         const health = await twilioBackendService.getTwilioHealth();
         sendJson(res, 200, health);
         return;
@@ -1097,12 +1700,272 @@ export function createBackendServer(): http.Server {
 
       // AI Chat Legacy Data Cleanup / Quarantine
       if (req.method === 'POST' && pathname === '/api/v1/ai/cleanup') {
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
-
         const cleanupResult = await geminiService.quarantineLegacyConversations();
         sendJson(res, 200, { success: true, ...cleanupResult });
+        return;
+      }
+
+      // 9a. Citizen Grant Consent
+      const consentGrantMatch = pathname.match(/^\/api\/v1\/consent\/([^/]+)\/grant$/);
+      if (req.method === 'POST' && consentGrantMatch) {
+        const consentId = consentGrantMatch[1];
+        if (!validatePathParam(consentId)) {
+          sendError(res, 400, 'Invalid consent ID format.', requestId);
+          return;
+        }
+        const cDoc = await adminDb.collection('consents').doc(consentId).get();
+        if (!cDoc.exists) {
+          sendError(res, 404, 'Consent request not found', requestId);
+          return;
+        }
+        const cData = cDoc.data()!;
+        if (cData.citizenUid !== claims.uid) {
+          sendError(res, 403, 'Forbidden: Cannot grant consent for another citizen', requestId);
+          return;
+        }
+
+        await adminDb.collection('consents').doc(consentId).update({
+          status: 'GRANTED',
+          grantedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        await writeAuditLog(adminDb, {
+          actorUid: claims.uid,
+          actorRole: claims.role || 'CITIZEN',
+          action: 'CITIZEN_GRANTED_CONSENT',
+          targetType: 'CONSENT',
+          targetId: consentId,
+          details: { targetDepartment: cData.targetDepartment, applicationId: cData.applicationId },
+        });
+
+        sendJson(res, 200, { success: true, message: 'Consent granted successfully.' });
+        return;
+      }
+
+      // 9b. Citizen Deny Consent
+      const consentDenyMatch = pathname.match(/^\/api\/v1\/consent\/([^/]+)\/deny$/);
+      if (req.method === 'POST' && consentDenyMatch) {
+        const consentId = consentDenyMatch[1];
+        if (!validatePathParam(consentId)) {
+          sendError(res, 400, 'Invalid consent ID format.', requestId);
+          return;
+        }
+        const cDoc = await adminDb.collection('consents').doc(consentId).get();
+        if (!cDoc.exists) {
+          sendError(res, 404, 'Consent request not found', requestId);
+          return;
+        }
+        const cData = cDoc.data()!;
+        if (cData.citizenUid !== claims.uid) {
+          sendError(res, 403, 'Forbidden: Cannot deny consent for another citizen', requestId);
+          return;
+        }
+
+        await adminDb.collection('consents').doc(consentId).update({
+          status: 'DENIED',
+          deniedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        await writeAuditLog(adminDb, {
+          actorUid: claims.uid,
+          actorRole: claims.role || 'CITIZEN',
+          action: 'CITIZEN_DENIED_CONSENT',
+          targetType: 'CONSENT',
+          targetId: consentId,
+          details: { targetDepartment: cData.targetDepartment, applicationId: cData.applicationId },
+        });
+
+        sendJson(res, 200, { success: true, message: 'Consent denied successfully.' });
+        return;
+      }
+
+      // 9c. Document Access Control Endpoint
+      if (req.method === 'POST' && pathname === '/api/v1/documents/access') {
+        const citizenUid = typeof body.citizenUid === 'string' ? body.citizenUid.trim() : '';
+        const documentPath = typeof body.documentPath === 'string' ? body.documentPath.trim() : '';
+        const applicationId = typeof body.applicationId === 'string' ? body.applicationId.trim() : undefined;
+
+        if (!citizenUid || !documentPath) {
+          sendError(res, 400, 'Bad Request: "citizenUid" and "documentPath" are required.', requestId);
+          return;
+        }
+
+        // Citizens can only access their own documents
+        if (claims.role === 'CITIZEN') {
+          if (claims.uid !== citizenUid) {
+            sendError(res, 403, 'Forbidden: Citizens can only access their own documents.', requestId);
+            return;
+          }
+        } else {
+          // Department officers must have active citizen consent
+          const consentCheck = await verifyOfficerConsent({
+            db: adminDb,
+            citizenUid,
+            departmentId: claims.departmentId || claims.role || '',
+            officerRole: claims.role || '',
+            officerUid: claims.uid,
+            applicationId,
+          });
+
+          if (!consentCheck.allowed) {
+            await writeAuditLog(adminDb, {
+              actorUid: claims.uid,
+              actorRole: claims.role || 'UNKNOWN',
+              action: 'DOCUMENT_ACCESS_DENIED_NO_CONSENT',
+              targetType: 'DOCUMENT',
+              targetId: documentPath,
+              details: { citizenUid, reason: consentCheck.reason, departmentId: claims.departmentId },
+            });
+            sendError(res, 403, `Forbidden: ${consentCheck.reason || 'Active citizen consent required.'}`, requestId);
+            return;
+          }
+        }
+
+        await writeAuditLog(adminDb, {
+          actorUid: claims.uid,
+          actorRole: claims.role || 'UNKNOWN',
+          action: 'DOCUMENT_ACCESSED',
+          targetType: 'DOCUMENT',
+          targetId: documentPath,
+          details: { citizenUid, applicationId },
+        });
+
+        sendJson(res, 200, {
+          success: true,
+          allowed: true,
+          documentPath,
+          accessedAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // 9d. Document Upload Finalization & Magic Byte Verification
+      if (req.method === 'POST' && pathname === '/api/v1/documents/finalize') {
+        const storagePath = typeof body.storagePath === 'string' ? body.storagePath.trim() : '';
+        const declaredType = typeof body.declaredType === 'string' ? body.declaredType.trim() : undefined;
+        const applicationId = typeof body.applicationId === 'string' ? body.applicationId.trim() : undefined;
+
+        if (!storagePath) {
+          sendError(res, 400, 'Bad Request: "storagePath" is required.', requestId);
+          return;
+        }
+
+        // Enforce path ownership
+        const isOwner =
+          storagePath.startsWith(`residentDocuments/${claims.uid}/`) ||
+          storagePath.startsWith(`users/${claims.uid}/`) ||
+          claims.role === 'ADMIN';
+
+        if (!isOwner) {
+          sendError(res, 403, 'Forbidden: Cannot finalize documents outside your user directory.', requestId);
+          return;
+        }
+
+        try {
+          const fileRef = adminStorage.bucket().file(storagePath);
+          const [exists] = await fileRef.exists();
+          if (!exists) {
+            sendError(res, 404, 'Uploaded document file not found in storage.', requestId);
+            return;
+          }
+
+          const [buffer] = await fileRef.download();
+          const validation = validateFileMagicBytes(buffer, declaredType);
+
+          if (!validation.isValid) {
+            // Delete corrupt or disguised file immediately
+            await fileRef.delete({ ignoreNotFound: true });
+
+            await writeAuditLog(adminDb, {
+              actorUid: claims.uid,
+              actorRole: claims.role || 'CITIZEN',
+              action: 'DOCUMENT_UPLOAD_PURGED_MALICIOUS_OR_INVALID',
+              targetType: 'DOCUMENT',
+              targetId: storagePath,
+              details: { error: validation.error, declaredType },
+            });
+
+            sendError(res, 422, `Document validation failed: ${validation.error}`, requestId);
+            return;
+          }
+
+          await writeAuditLog(adminDb, {
+            actorUid: claims.uid,
+            actorRole: claims.role || 'CITIZEN',
+            action: 'DOCUMENT_UPLOAD_FINALIZED',
+            targetType: 'DOCUMENT',
+            targetId: storagePath,
+            details: { detectedType: validation.detectedType, sizeBytes: buffer.length, applicationId },
+          });
+
+          sendJson(res, 200, {
+            success: true,
+            verified: true,
+            storagePath,
+            detectedType: validation.detectedType,
+            sizeBytes: buffer.length,
+            finalizedAt: new Date().toISOString(),
+          });
+        } catch (err: any) {
+          sendError(res, 500, 'Failed to finalize uploaded document.', requestId, err);
+        }
+        return;
+      }
+
+      // 9e. DPDP Right to Erasure / Account Data Purge
+      if (req.method === 'DELETE' && pathname === '/api/v1/citizen/data-erasure') {
+        const targetUid = claims.uid;
+
+        try {
+          // 1. Purge resident documents in Firebase Storage
+          try {
+            await adminStorage.bucket().deleteFiles({
+              prefix: `residentDocuments/${targetUid}/`,
+              force: true,
+            });
+            await adminStorage.bucket().deleteFiles({
+              prefix: `users/${targetUid}/`,
+              force: true,
+            });
+          } catch (storageErr: any) {
+            console.warn('[Server] Storage erasure warning:', storageErr?.message);
+          }
+
+          // 2. Delete resident profile record
+          try {
+            await adminDb.collection('residentProfiles').doc(targetUid).delete();
+          } catch (rpErr: any) {
+            console.warn('[Server] Resident profile deletion warning:', rpErr?.message);
+          }
+
+          // 3. Anonymize user record in Firestore
+          const anonymized = anonymizeUserData(targetUid);
+          await adminDb.collection('users').doc(targetUid).set(anonymized, { merge: true });
+
+          // 4. Disable user and revoke refresh tokens in Firebase Auth
+          await adminAuth.updateUser(targetUid, { disabled: true });
+          await adminAuth.revokeRefreshTokens(targetUid);
+
+          // 5. Tamper-evident audit log
+          await writeAuditLog(adminDb, {
+            actorUid: claims.uid,
+            actorRole: claims.role || 'CITIZEN',
+            action: 'CITIZEN_DATA_ERASURE_EXECUTED',
+            targetType: 'USER',
+            targetId: targetUid,
+            details: { reason: 'DPDP statutory right to erasure fulfilled' },
+          });
+
+          sendJson(res, 200, {
+            success: true,
+            message: 'All personal data, resident documents, and identity records have been permanently erased per DPDP statutory compliance.',
+            erasedAt: new Date().toISOString(),
+          });
+        } catch (erasureErr: any) {
+          sendError(res, 500, 'Failed to fulfill data erasure request.', requestId, erasureErr);
+        }
         return;
       }
 
@@ -1112,9 +1975,6 @@ export function createBackendServer(): http.Server {
           sendError(res, 404, 'Not Found', requestId);
           return;
         }
-        const claims = await requireAuth(req, res, requestId);
-        if (!claims) return;
-        if (!requireRole(claims, ['ADMIN'], res, requestId)) return;
 
         sendJson(res, 200, { success: true, message: 'Demo reset executed.' });
         return;

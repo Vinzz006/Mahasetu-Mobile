@@ -1,0 +1,45 @@
+title = "MahaSetu Secret Detection & Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Repository Allowlist for Test Dummies & Documentation Placeholders"
+paths = [
+  '''^tests/''',
+  '''^backend/src/__tests__/''',
+  '''\.env\.example$''',
+  '''^docs/''',
+  '''SECURITY(-FIXES)?\.md$''',
+]
+regexes = [
+  '''AIzaSyDummyDevKeyForTestingOnly00000''',
+  '''REDACTED''',
+  '''your_twilio_auth_token''',
+  '''your_gemini_api_key''',
+  '''dummy_secret_for_tests''',
+]
+
+[[rules]]
+id = "firebase-api-key"
+description = "Firebase / Google Cloud API Key"
+regex = '''AIza[0-9A-Za-z\-_]{35}'''
+keywords = ["AIza"]
+
+[[rules]]
+id = "twilio-auth-token"
+description = "Twilio Auth Token"
+regex = '''(?i)(?:twilio|auth_token|authtoken)[\s:=]+["']?([a-f0-9]{32})["']?'''
+keywords = ["twilio", "auth_token"]
+
+[[rules]]
+id = "generic-private-key"
+description = "Unencrypted Private Key Block"
+regex = '''-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'''
+keywords = ["BEGIN", "PRIVATE KEY"]
+
+[[rules]]
+id = "raw-aadhaar-leak"
+description = "Raw 12-Digit Indian Aadhaar Number Leak"
+regex = '''\b[2-9][0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b'''
+keywords = ["aadhaar"]

@@ -55,6 +55,7 @@ async function bootstrapAdmin() {
       role: 'ADMIN',
       status: 'APPROVED',
     });
+    await adminAuth.revokeRefreshTokens(targetUid);
 
     // Update user document in Firestore
     console.log('[Bootstrap] Updating Firestore user profile document...');

@@ -71,6 +71,25 @@ describe('Structured Audit Logger & Firebase App Check Tests', () => {
         console.log = originalLog;
       }
     });
+
+    it('1.3. logger.warn and logger.error emit valid JSON with FAILURE outcome', () => {
+      let loggedError = '';
+      const originalError = console.error;
+      try {
+        console.error = (msg: string) => {
+          loggedError = msg;
+        };
+
+        logger.error('AUTH_EXCEPTION', 'user_login_failed', 'Invalid signature', { ip: '127.0.0.1' });
+        const parsed = JSON.parse(loggedError);
+        assert.strictEqual(parsed.level, 'ERROR');
+        assert.strictEqual(parsed.event, 'AUTH_EXCEPTION');
+        assert.strictEqual(parsed.outcome, 'FAILURE');
+        assert.strictEqual(parsed.error, 'Invalid signature');
+      } finally {
+        console.error = originalError;
+      }
+    });
   });
 
   describe('2. Firebase App Check Backend Verification', () => {
